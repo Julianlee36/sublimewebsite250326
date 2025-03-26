@@ -1,0 +1,607 @@
+/* App Container */
+.app-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* Main Content */
+.main-content {
+  flex: 1;
+  padding: 2rem 0;
+}
+
+/* Navbar */
+.navbar {
+  background-color: var(--primary-color);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  display: flex;
+  justify-content: space-between;
+  padding: 1rem 2rem;
+}
+
+.navbar-logo a {
+  color: var(--white);
+  font-size: 1.5rem;
+  font-weight: bold;
+}
+
+.navbar-menu {
+  display: flex;
+  gap: 1.5rem;
+}
+
+.navbar-menu li a {
+  color: var(--white);
+  font-weight: 500;
+  padding: 0.5rem;
+  position: relative;
+}
+
+.navbar-menu li a:hover {
+  color: var(--background-color);
+}
+
+.navbar-menu li a::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  width: 0;
+  height: 2px;
+  background-color: var(--white);
+  transition: width 0.3s ease;
+}
+
+.navbar-menu li a:hover::after {
+  width: 100%;
+}
+
+/* Footer */
+.footer {
+  background-color: var(--dark-gray);
+  color: var(--white);
+  padding: 2rem 0 0;
+}
+
+.footer-content {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+.footer-section {
+  flex: 1;
+  margin-bottom: 1.5rem;
+  min-width: 300px;
+}
+
+.footer-section h3 {
+  border-bottom: 2px solid var(--primary-color);
+  display: inline-block;
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+}
+
+.footer-section ul li {
+  margin-bottom: 0.5rem;
+}
+
+.footer-section a {
+  color: var(--white);
+}
+
+.footer-section a:hover {
+  color: var(--primary-color);
+}
+
+.social-links {
+  display: flex;
+  gap: 1rem;
+}
+
+.footer-bottom {
+  background-color: rgba(0, 0, 0, 0.2);
+  padding: 1rem 0;
+  text-align: center;
+  margin-top: 2rem;
+}
+
+.admin-link {
+  margin-left: 20px;
+  font-size: 0.85em;
+  opacity: 0.7;
+}
+
+.admin-link a {
+  color: var(--white);
+  text-decoration: none;
+  transition: opacity 0.3s;
+}
+
+.admin-link a:hover {
+  opacity: 1;
+  text-decoration: underline;
+}
+
+/* Home Page - Note: Hero banner moved to separate component */
+
+/* Events Grid */
+.events-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.event-card {
+  background-color: var(--light-gray);
+  border-radius: 8px;
+  padding: 1.5rem;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.event-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+.event-card h3 {
+  color: var(--primary-color);
+  margin-bottom: 0.5rem;
+}
+
+.event-date, .event-location {
+  color: var(--dark-gray);
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+}
+
+.view-more {
+  display: inline-block;
+  margin-top: 1.5rem;
+  font-weight: 500;
+}
+
+/* Quick Links */
+.links-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.quick-link-card {
+  background-color: var(--light-gray);
+  border-left: 4px solid var(--primary-color);
+  border-radius: 4px;
+  color: var(--text-color);
+  font-weight: 500;
+  padding: 1.5rem;
+  text-align: center;
+  transition: background-color 0.3s ease, transform 0.3s ease;
+}
+
+.quick-link-card:hover {
+  background-color: var(--primary-color);
+  color: var(--white);
+  transform: translateX(5px);
+}
+
+/* Team Highlights */
+.highlight-content {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2rem;
+  margin-top: 1.5rem;
+}
+
+.highlight-text {
+  flex: 1;
+  min-width: 300px;
+}
+
+.highlight-text h3 {
+  color: var(--primary-color);
+  margin-bottom: 1rem;
+}
+
+.highlight-image {
+  flex: 1;
+  min-width: 300px;
+}
+
+.image-placeholder {
+  background-color: var(--light-gray);
+  border-radius: 8px;
+  color: var(--dark-gray);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 250px;
+  font-weight: 500;
+}
+
+.read-more {
+  display: inline-block;
+  margin-top: 1rem;
+  font-weight: 500;
+}
+
+/* Page sections */
+.about-page section,
+.roster-page section,
+.schedule-page section,
+.news-page section,
+.media-page section,
+.playbook-page section,
+.sponsors-page section,
+.recruitment-page section,
+.contact-page section {
+  background-color: var(--white);
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin-bottom: 2rem;
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
+  padding: 2rem;
+}
+
+/* Home page sections - special styling */
+.home-page section {
+  background-color: var(--white);
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin-bottom: 2rem;
+  padding: 2rem;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.home-page section:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+/* About Page Styles */
+.about-page h1 {
+  margin-bottom: 2rem;
+  text-align: center;
+}
+
+.history-content, 
+.highlight-content {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2rem;
+  margin-top: 1.5rem;
+}
+
+.history-text, 
+.highlight-text {
+  flex: 2;
+  min-width: 300px;
+}
+
+.history-image, 
+.highlight-image {
+  flex: 1;
+  min-width: 300px;
+}
+
+.about-image {
+  width: 100%;
+  height: 300px;
+  background-size: cover;
+  background-position: center;
+  border-radius: 8px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+.history-text p, 
+.highlight-text p {
+  margin-bottom: 1rem;
+}
+
+.mission-list {
+  list-style-type: disc;
+  margin-left: 1.5rem;
+  margin-top: 1rem;
+}
+
+.mission-list li {
+  margin-bottom: 0.5rem;
+}
+
+.values-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.value-card {
+  background-color: var(--light-gray);
+  border-top: 4px solid var(--primary-color);
+  border-radius: 8px;
+  padding: 1.5rem;
+  transition: transform 0.3s ease;
+}
+
+.value-card:hover {
+  transform: translateY(-5px);
+}
+
+.value-card h3 {
+  color: var(--primary-color);
+  margin-bottom: 0.75rem;
+}
+
+.coaches-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 2rem;
+  margin-top: 1.5rem;
+}
+
+.coach-card {
+  background-color: var(--white);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.coach-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+.coach-image {
+  height: 200px;
+  overflow: hidden;
+}
+
+.coach-image .image-placeholder {
+  height: 100%;
+}
+
+.coach-photo {
+  width: 100%;
+  height: 100%;
+  background-size: cover;
+  background-position: center;
+}
+
+.coach-info {
+  padding: 1.5rem;
+}
+
+.coach-role {
+  color: var(--primary-color);
+  font-weight: 500;
+  margin-bottom: 0.75rem;
+}
+
+.coach-bio {
+  color: var(--dark-gray);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+/* Roster Page Styles */
+.roster-page h1 {
+  margin-bottom: 2rem;
+  text-align: center;
+}
+
+.roster-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: center;
+  margin-bottom: 2rem;
+}
+
+.roster-filters button {
+  background-color: var(--light-gray);
+  border: 2px solid transparent;
+  color: var(--dark-gray);
+  font-size: 0.9rem;
+  padding: 0.5rem 1rem;
+}
+
+.roster-filters button:hover {
+  background-color: var(--primary-color);
+  color: var(--white);
+}
+
+.roster-filters button.active {
+  background-color: var(--primary-color);
+  border-color: var(--secondary-color);
+  color: var(--white);
+}
+
+.players-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); /* Narrower cards */
+  gap: 2rem;
+  margin-top: 1.5rem;
+}
+
+.player-card {
+  background-color: var(--white);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.player-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+.player-image {
+  height: 280px; /* Increased height for more vertical emphasis */
+  overflow: hidden;
+  position: relative;
+}
+
+.player-image .image-placeholder {
+  align-items: center;
+  background-color: var(--primary-color);
+  color: var(--white);
+  display: flex;
+  font-size: 2.5rem;
+  font-weight: bold;
+  height: 100%;
+  justify-content: center;
+}
+
+.player-image .player-photo {
+  width: 100%;
+  height: 100%;
+  background-size: cover;
+  background-position: center top;
+  background-repeat: no-repeat;
+}
+
+.captain-badge {
+  background-color: var(--secondary-color);
+  border-radius: 4px;
+  color: var(--white);
+  font-size: 0.8rem;
+  font-weight: bold;
+  padding: 0.25rem 0.5rem;
+  position: absolute;
+  right: 10px;
+  top: 10px;
+}
+
+.player-info {
+  padding: 1.2rem;
+  text-align: center; /* Center text for vertical cards */
+}
+
+.player-number {
+  color: var(--dark-gray);
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.player-bio {
+  color: var(--text-color);
+  font-size: 0.95rem;
+  margin-top: 1rem;
+  text-align: left; /* Keep bio text left-aligned for easier reading */
+  line-height: 1.4;
+}
+
+/* Team section styles */
+.team-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 2.5rem;
+  margin-top: 2rem;
+}
+
+.team-section {
+  background-color: var(--white);
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.team-heading {
+  font-size: 1.8rem;
+  color: var(--primary-color);
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid var(--light-gray);
+}
+
+.leadership-content {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.leadership-content p {
+  margin-bottom: 1rem;
+}
+
+.alumni-intro {
+  margin-bottom: 2rem;
+  text-align: center;
+}
+
+.alumni-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 2rem;
+}
+
+.alumni-card {
+  background-color: var(--light-gray);
+  border-left: 4px solid var(--primary-color);
+  border-radius: 8px;
+  padding: 1.5rem;
+  transition: transform 0.3s ease;
+}
+
+.alumni-card:hover {
+  transform: translateX(5px);
+}
+
+.alumni-card h3 {
+  color: var(--primary-color);
+  margin-bottom: 0.75rem;
+}
+
+.alumni-years, .alumni-achievements, .alumni-current {
+  margin-bottom: 0.5rem;
+}
+
+.alumni-achievements {
+  font-style: italic;
+}
+
+/* Contact Form */
+.contact-form form {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .navbar {
+    flex-direction: column;
+    padding: 1rem;
+  }
+  
+  .navbar-logo {
+    margin-bottom: 1rem;
+  }
+  
+  .navbar-menu {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    justify-content: center;
+  }
+  
+  .footer-content {
+    flex-direction: column;
+  }
+  
+  .home-page .hero h1 {
+    font-size: 2rem;
+  }
+  
+  .home-page .hero p {
+    font-size: 1.2rem;
+  }
+}
