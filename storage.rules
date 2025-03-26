@@ -1,0 +1,18 @@
+rules_version = '2';
+
+// Craft rules based on your app's security requirements.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /images/{filename} {
+      // Allow read access to everyone
+      allow read: if true;
+      // Allow write access to anyone - you may want to restrict this in production
+      allow write: if true;
+    }
+    
+    // Default deny
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

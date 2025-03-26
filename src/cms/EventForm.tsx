@@ -4,11 +4,11 @@ import { Event } from './DataContext';
 interface EventFormProps {
   event: Event;
   onInputChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => void;
-  onSave: () => void;
-  onCancel: () => void;
+  onSave?: () => void;
+  onCancel?: () => void;
 }
 
-const EventForm: React.FC<EventFormProps> = ({ event, onInputChange, onSave, onCancel }) => {
+const EventForm: React.FC<EventFormProps> = ({ event, onInputChange }) => {
   return (
     <div className="edit-form">
       <div className="form-group">

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useData, Player, Alumni, Event, NewsItem, SiteSettings, Team, PageContent, Coach } from './DataContext';
+import { useData, Event, SiteSettings, Team, Coach } from './DataContext';
 import EventForm from './EventForm';
 import SiteSettingsForm from './SiteSettingsForm';
 import './admin.css';
@@ -16,7 +16,7 @@ const AdminPage: React.FC = () => {
     saveData
   } = useData();
 
-  const [activeTab, setActiveTab] = useState<'alumni' | 'events' | 'news' | 'teams' | 'pages' | 'settings'>('teams');
+  const [activeTab, setActiveTab] = useState<'alumni' | 'events' | 'news' | 'teams' | 'pages' | 'settings' | 'players'>('teams');
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
   const [editMode, setEditMode] = useState<boolean>(false);
   const [editItem, setEditItem] = useState<any>(null);
@@ -545,8 +545,8 @@ const AdminPage: React.FC = () => {
             settings={editItem as SiteSettings}
             onInputChange={handleInputChange}
             onSettingsChange={handleSettingsChange}
-            onSave={handleSaveItem}
-            onCancel={handleCancelEdit}
+            _onSave={handleSaveItem}
+            _onCancel={handleCancelEdit}
           />
         );
       default:

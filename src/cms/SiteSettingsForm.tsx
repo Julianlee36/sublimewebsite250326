@@ -1,49 +1,71 @@
 import React, { useState, useRef } from 'react';
 import { SiteSettings } from './DataContext';
+import { ref, uploadString, getDownloadURL } from 'firebase/storage';
+import { storage } from '../firebase/config';
 
 interface SiteSettingsFormProps {
   settings: SiteSettings;
   onInputChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => void;
   onSettingsChange: (updatedSettings: Partial<SiteSettings>) => void;
-  onSave: () => void;
-  onCancel: () => void;
+  _onSave?: () => void;
+  _onCancel?: () => void;
 }
 
 const SiteSettingsForm: React.FC<SiteSettingsFormProps> = ({
   settings,
   onInputChange,
-  onSettingsChange,
-  onSave,
-  onCancel
+  onSettingsChange
 }) => {
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setIsUploading(true);
       
-      const file = e.target.files[0];
-      const reader = new FileReader();
-      
-      reader.onloadend = () => {
-        // Convert image to base64 data URL
-        const base64String = reader.result as string;
+      try {
+        const file = e.target.files[0];
+        const reader = new FileReader();
         
-        // Update the settings with the new image
-        onSettingsChange({
-          heroBackgroundImage: base64String
-        });
+        reader.onloadend = async () => {
+          // Convert image to base64 data URL
+          const base64String = reader.result as string;
+          
+          try {
+            // Upload to Firebase Storage
+            const storageRef = ref(storage, `images/hero-background-${Date.now()}.jpg`);
+            await uploadString(storageRef, base64String, 'data_url');
+            const downloadURL = await getDownloadURL(storageRef);
+            
+            // Store both the base64 for local preview and the URL for production
+            onSettingsChange({
+              heroBackgroundImage: downloadURL
+            });
+            
+            // Also store the base64 in localStorage for quick local preview
+            localStorage.setItem('heroImageBase64', base64String);
+            
+          } catch (error) {
+            console.error('Error uploading to Firebase Storage:', error);
+            // Fall back to using just the base64 version
+            onSettingsChange({
+              heroBackgroundImage: base64String
+            });
+          }
+          
+          setIsUploading(false);
+        };
         
+        reader.onerror = () => {
+          console.error('Error reading file');
+          setIsUploading(false);
+        };
+        
+        reader.readAsDataURL(file);
+      } catch (error) {
+        console.error('Error in image upload:', error);
         setIsUploading(false);
-      };
-      
-      reader.onerror = () => {
-        console.error('Error reading file');
-        setIsUploading(false);
-      };
-      
-      reader.readAsDataURL(file);
+      }
     }
   };
   

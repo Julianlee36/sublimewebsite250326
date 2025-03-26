@@ -1,19 +1,18 @@
-import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import React from 'react';
+import { Link } from 'react-router-dom';
 
 const Navbar: React.FC = () => {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const location = useLocation();
   
   const isAdmin = localStorage.getItem('admin_authenticated') === 'true';
   
-  const toggleMenu = () => {
-    setMenuOpen(!menuOpen);
-  };
+  // Uncomment if menu functionality is needed
+  // const toggleMenu = () => {
+  //   setMenuOpen(!menuOpen);
+  // };
   
-  const closeMenu = () => {
-    setMenuOpen(false);
-  };
+  // const closeMenu = () => {
+  //   setMenuOpen(false);
+  // };
   
   const handleLogout = () => {
     localStorage.removeItem('admin_authenticated');

@@ -1,4 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { ref, uploadString, getDownloadURL } from 'firebase/storage';
+import { db, storage } from '../firebase/config';
 
 // Define types for our data
 export interface Player {
@@ -280,39 +283,110 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     return savedSettings ? JSON.parse(savedSettings) : initialSiteSettings;
   });
 
-  // Save data to localStorage
-  const saveData = () => {
-    localStorage.setItem('players', JSON.stringify(players));
-    localStorage.setItem('alumni', JSON.stringify(alumni));
-    localStorage.setItem('events', JSON.stringify(events));
-    localStorage.setItem('news', JSON.stringify(news));
-    localStorage.setItem('teams', JSON.stringify(teams));
-    localStorage.setItem('pageContent', JSON.stringify(pageContent));
-    localStorage.setItem('siteSettings', JSON.stringify(siteSettings));
+  // Save data to Firebase Firestore
+  const saveData = async () => {
+    try {
+      // Store data collections in Firestore
+      await setDoc(doc(db, 'website', 'players'), { data: players });
+      await setDoc(doc(db, 'website', 'alumni'), { data: alumni });
+      await setDoc(doc(db, 'website', 'events'), { data: events });
+      await setDoc(doc(db, 'website', 'news'), { data: news });
+      await setDoc(doc(db, 'website', 'teams'), { data: teams });
+      
+      // Special handling for pageContent with images
+      await setDoc(doc(db, 'website', 'pageContent'), { 
+        data: {
+          ...pageContent,
+          // Handle images if needed
+        }
+      });
+      
+      // Special handling for site settings with hero image
+      const siteSettingsToSave = { ...siteSettings };
+      
+      // If there's a hero background image in base64 format, upload it to storage
+      if (siteSettings.heroBackgroundImage && siteSettings.heroBackgroundImage.startsWith('data:image')) {
+        try {
+          const storageRef = ref(storage, 'images/hero-background.jpg');
+          await uploadString(storageRef, siteSettings.heroBackgroundImage, 'data_url');
+          const downloadURL = await getDownloadURL(storageRef);
+          siteSettingsToSave.heroBackgroundImage = downloadURL;
+        } catch (error) {
+          console.error("Error uploading hero image:", error);
+        }
+      }
+      
+      await setDoc(doc(db, 'website', 'siteSettings'), { data: siteSettingsToSave });
+      
+      // Also save to localStorage for quicker access
+      localStorage.setItem('players', JSON.stringify(players));
+      localStorage.setItem('alumni', JSON.stringify(alumni));
+      localStorage.setItem('events', JSON.stringify(events));
+      localStorage.setItem('news', JSON.stringify(news));
+      localStorage.setItem('teams', JSON.stringify(teams));
+      localStorage.setItem('pageContent', JSON.stringify(pageContent));
+      localStorage.setItem('siteSettings', JSON.stringify(siteSettings));
+      
+    } catch (error) {
+      console.error("Error saving data to Firestore:", error);
+    }
   };
 
-  // Load data from localStorage
-  const loadData = () => {
-    const savedPlayers = localStorage.getItem('players');
-    const savedAlumni = localStorage.getItem('alumni');
-    const savedEvents = localStorage.getItem('events');
-    const savedNews = localStorage.getItem('news');
-    const savedTeams = localStorage.getItem('teams');
-    const savedPageContent = localStorage.getItem('pageContent');
-    const savedSettings = localStorage.getItem('siteSettings');
+  // Load data from Firestore (with localStorage fallback)
+  const loadData = async () => {
+    try {
+      // Try to load from Firestore first
+      const playersDoc = await getDoc(doc(db, 'website', 'players'));
+      const alumniDoc = await getDoc(doc(db, 'website', 'alumni'));
+      const eventsDoc = await getDoc(doc(db, 'website', 'events'));
+      const newsDoc = await getDoc(doc(db, 'website', 'news'));
+      const teamsDoc = await getDoc(doc(db, 'website', 'teams'));
+      const pageContentDoc = await getDoc(doc(db, 'website', 'pageContent'));
+      const siteSettingsDoc = await getDoc(doc(db, 'website', 'siteSettings'));
+      
+      // Update state with Firestore data
+      if (playersDoc.exists()) setPlayers(playersDoc.data().data);
+      if (alumniDoc.exists()) setAlumni(alumniDoc.data().data);
+      if (eventsDoc.exists()) setEvents(eventsDoc.data().data);
+      if (newsDoc.exists()) setNews(newsDoc.data().data);
+      if (teamsDoc.exists()) setTeams(teamsDoc.data().data);
+      if (pageContentDoc.exists()) setPageContent(pageContentDoc.data().data);
+      if (siteSettingsDoc.exists()) setSiteSettings(siteSettingsDoc.data().data);
+      
+    } catch (error) {
+      console.error("Error loading data from Firestore:", error);
+      
+      // Fall back to localStorage if Firestore fails
+      const savedPlayers = localStorage.getItem('players');
+      const savedAlumni = localStorage.getItem('alumni');
+      const savedEvents = localStorage.getItem('events');
+      const savedNews = localStorage.getItem('news');
+      const savedTeams = localStorage.getItem('teams');
+      const savedPageContent = localStorage.getItem('pageContent');
+      const savedSettings = localStorage.getItem('siteSettings');
 
-    if (savedPlayers) setPlayers(JSON.parse(savedPlayers));
-    if (savedAlumni) setAlumni(JSON.parse(savedAlumni));
-    if (savedEvents) setEvents(JSON.parse(savedEvents));
-    if (savedNews) setNews(JSON.parse(savedNews));
-    if (savedTeams) setTeams(JSON.parse(savedTeams));
-    if (savedPageContent) setPageContent(JSON.parse(savedPageContent));
-    if (savedSettings) setSiteSettings(JSON.parse(savedSettings));
+      if (savedPlayers) setPlayers(JSON.parse(savedPlayers));
+      if (savedAlumni) setAlumni(JSON.parse(savedAlumni));
+      if (savedEvents) setEvents(JSON.parse(savedEvents));
+      if (savedNews) setNews(JSON.parse(savedNews));
+      if (savedTeams) setTeams(JSON.parse(savedTeams));
+      if (savedPageContent) setPageContent(JSON.parse(savedPageContent));
+      if (savedSettings) setSiteSettings(JSON.parse(savedSettings));
+    }
   };
 
+  // Load data when component mounts
+  useEffect(() => {
+    loadData();
+  }, []);
+  
   // Save data when it changes
   useEffect(() => {
-    saveData();
+    const timeoutId = setTimeout(() => {
+      saveData();
+    }, 500); // Debounce saves to reduce writes
+    
+    return () => clearTimeout(timeoutId);
   }, [players, alumni, events, news, teams, pageContent, siteSettings]);
 
   const value = {
