@@ -1,7 +1,7 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
-import { getStorage } from "firebase/storage";
+import { getAnalytics, setAnalyticsCollectionEnabled } from "firebase/analytics";
+import { getStorage, ref as storageRef, uploadString, getDownloadURL } from "firebase/storage";
 import { getFirestore } from "firebase/firestore";
 // TODO: Add SDKs for Firebase products that you want to use
 // https://firebase.google.com/docs/web/setup#available-libraries
@@ -21,5 +21,23 @@ const firebaseConfig = {
 // Initialize Firebase
 export const app = initializeApp(firebaseConfig);
 export const analytics = getAnalytics(app);
+setAnalyticsCollectionEnabled(analytics, false); // Disable analytics cookies
 export const storage = getStorage(app);
 export const db = getFirestore(app);
+
+// Helper function to upload an image to Firebase Storage
+export const uploadImageToStorage = async (imageString: string, path: string): Promise<string> => {
+  try {
+    if (!imageString || !imageString.startsWith('data:')) {
+      return '';
+    }
+    
+    const imageRef = storageRef(storage, path);
+    const snapshot = await uploadString(imageRef, imageString, 'data_url');
+    const downloadURL = await getDownloadURL(snapshot.ref);
+    return downloadURL;
+  } catch (error) {
+    console.error('Error uploading image to storage:', error);
+    throw error;
+  }
+};

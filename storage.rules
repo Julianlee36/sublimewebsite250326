@@ -3,16 +3,40 @@ rules_version = '2';
 // Craft rules based on your app's security requirements.
 service firebase.storage {
   match /b/{bucket}/o {
-    match /images/{filename} {
-      // Allow read access to everyone
+    // Allow public read access for players folder
+    match /players/{filename} {
       allow read: if true;
-      // Allow write access to anyone - you may want to restrict this in production
-      allow write: if true;
+      allow write: if true; // Allow all write operations for players
     }
     
-    // Default deny
+    // Allow public read access for images folder
+    match /images/{filename} {
+      allow read: if true;
+      allow write: if true; // Allow all write operations for images
+    }
+    
+    // Allow public read access for banners folder
+    match /banners/{filename} {
+      allow read: if true;
+      allow write: if true; // Allow all write operations for banners
+    }
+    
+    // Allow public read access for events folder
+    match /events/{filename} {
+      allow read: if true;
+      allow write: if true; // Allow all write operations for events
+    }
+    
+    // Allow public read access for sponsors folder
+    match /sponsors/{filename} {
+      allow read: if true;
+      allow write: if true; // Allow all write operations for sponsors
+    }
+    
+    // Default rule for all paths
     match /{allPaths=**} {
-      allow read, write: if false;
+      allow read: if true;
+      allow write: if true; // Allow all write operations temporarily
     }
   }
 }

@@ -54,6 +54,26 @@
   gap: 20px;
 }
 
+/* Event styles */
+.event-header {
+  display: flex;
+  margin-bottom: 15px;
+  align-items: flex-start;
+}
+
+.event-image {
+  border-radius: 4px;
+  overflow: hidden;
+  margin-right: 15px;
+  flex-shrink: 0;
+  background-position: center;
+  background-size: cover;
+}
+
+.event-details {
+  flex-grow: 1;
+}
+
 .data-item {
   border: 1px solid #ddd;
   border-radius: 4px;

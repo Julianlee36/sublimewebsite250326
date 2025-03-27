@@ -1,7 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { SiteSettings } from './DataContext';
-import { ref, uploadString, getDownloadURL } from 'firebase/storage';
-import { storage } from '../firebase/config';
+import { uploadImageToStorage } from '../firebase/config';
 
 interface SiteSettingsFormProps {
   settings: SiteSettings;
@@ -32,12 +31,11 @@ const SiteSettingsForm: React.FC<SiteSettingsFormProps> = ({
           const base64String = reader.result as string;
           
           try {
-            // Upload to Firebase Storage
-            const storageRef = ref(storage, `images/hero-background-${Date.now()}.jpg`);
-            await uploadString(storageRef, base64String, 'data_url');
-            const downloadURL = await getDownloadURL(storageRef);
+            // Upload to Firebase Storage using our helper
+            const fileName = `images/hero-background-${Date.now()}`;
+            const downloadURL = await uploadImageToStorage(base64String, fileName);
             
-            // Store both the base64 for local preview and the URL for production
+            // Store the URL for production
             onSettingsChange({
               heroBackgroundImage: downloadURL
             });

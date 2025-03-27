@@ -1,5 +1,6 @@
 import React from 'react';
 import { useData } from '../cms/DataContext';
+import ImageWithFallback from '../components/ImageWithFallback';
 
 const About: React.FC = () => {
   const { pageContent } = useData();
@@ -70,10 +71,12 @@ const About: React.FC = () => {
               <div key={coach.id} className="coach-card">
                 <div className="coach-image">
                   {coach.image ? (
-                    <div 
-                      className="coach-photo" 
-                      style={{ backgroundImage: `url(${coach.image})` }}
-                    ></div>
+                    <ImageWithFallback
+                      src={coach.image}
+                      alt={`${coach.name} - ${coach.role}`}
+                      fallbackSrc="/placeholder-coach.jpg"
+                      className="coach-photo"
+                    />
                   ) : (
                     <div className="image-placeholder">Coach Photo</div>
                   )}

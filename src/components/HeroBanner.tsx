@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import '../styles/HeroBanner.css';
+import ImageWithFallback from './ImageWithFallback';
 
 interface HeroBannerProps {
   title: string;
@@ -17,12 +18,18 @@ const HeroBanner: React.FC<HeroBannerProps> = ({
   ctaLink,
   backgroundImage
 }) => {
-  const bannerStyle = backgroundImage 
-    ? { backgroundImage: `url(${backgroundImage})` }
-    : {};
-
   return (
-    <div className="hero-banner" style={bannerStyle}>
+    <div className="hero-banner">
+      {backgroundImage && (
+        <div className="hero-background">
+          <ImageWithFallback
+            src={backgroundImage}
+            alt="Hero background"
+            fallbackSrc="/placeholder-hero.jpg"
+            className="hero-background-image"
+          />
+        </div>
+      )}
       <div className="hero-overlay"></div>
       <div className="hero-content">
         <h1>{title}</h1>

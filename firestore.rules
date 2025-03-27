@@ -8,6 +8,12 @@ service cloud.firestore {
       allow write: if true; // You can restrict this in production
     }
     
+    // Allow access to player data
+    match /players/{playerId} {
+      allow read: if true;
+      allow write: if true; // Allow player image updates
+    }
+    
     // Default deny
     match /{document=**} {
       allow read, write: if false;

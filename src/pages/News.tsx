@@ -1,5 +1,6 @@
 import React from 'react';
 import { useData } from '../cms/DataContext';
+import ImageWithFallback from '../components/ImageWithFallback';
 
 const News: React.FC = () => {
   const { news } = useData();
@@ -20,7 +21,12 @@ const News: React.FC = () => {
               <article key={item.id} className="news-card">
                 {item.image && (
                   <div className="news-image">
-                    <img src={item.image} alt={item.title} />
+                    <ImageWithFallback 
+                      src={item.image} 
+                      alt={item.title}
+                      fallbackSrc="/placeholder-news.jpg"
+                      className="news-image-content"
+                    />
                   </div>
                 )}
                 <div className="news-text">

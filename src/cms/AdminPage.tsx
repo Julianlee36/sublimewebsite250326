@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
 import { useData, Event, SiteSettings, Team, Coach } from './DataContext';
+import { doc, setDoc } from 'firebase/firestore';
+import { db } from '../firebase/config';
+import { uploadImageDataUrl, uploadImageFile, uploadPlayerImageAndSave } from '../firebase/imageUtils';
 import EventForm from './EventForm';
 import SiteSettingsForm from './SiteSettingsForm';
 import './admin.css';
@@ -36,12 +39,19 @@ const AdminPage: React.FC = () => {
   const handlePlayerImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      const reader = new FileReader();
       
+      // For preview we still use FileReader
+      const reader = new FileReader();
       reader.onloadend = () => {
-        // Convert image to base64 data URL
+        // Store the base64 temporarily for preview only
         const base64String = reader.result as string;
-        setEditItem({...editItem, image: base64String});
+        // We also store the original file for later upload
+        setEditItem({
+          ...editItem, 
+          image: base64String, 
+          tempImageData: base64String,
+          imageFile: file
+        });
       };
       
       reader.onerror = () => {
@@ -58,29 +68,28 @@ const AdminPage: React.FC = () => {
   };
   
   // Handle about page image upload
-  const handleAboutImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAboutImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      const reader = new FileReader();
-      
-      reader.onloadend = () => {
-        // Convert image to base64 data URL
-        const base64String = reader.result as string;
+      try {
+        const file = e.target.files[0];
         
-        // Update the page content
+        // Upload directly using the File object
+        console.log("Uploading about page image to Firebase Storage");
+        const fileName = `pages/about_${Date.now()}`;
+        const imageUrl = await uploadImageFile(file, fileName);
+        console.log("About image uploaded, URL:", imageUrl);
+        
+        // Update the page content with the URL
         setPageContent({
           ...pageContent,
-          aboutImage: base64String
+          aboutImage: imageUrl
         });
         
         saveData();
-      };
-      
-      reader.onerror = () => {
-        console.error('Error reading file');
-      };
-      
-      reader.readAsDataURL(file);
+      } catch (error) {
+        console.error("Error uploading about image:", error);
+        alert("There was an error uploading the image. Please try again.");
+      }
     }
   };
   
@@ -118,20 +127,45 @@ const AdminPage: React.FC = () => {
     setActiveTab('pages'); // Ensure we stay on the pages tab
   };
   
-  const handleSaveCoach = () => {
-    const coaches = pageContent.coaches || [];
-    const updatedCoaches = editItem.id 
-      ? coaches.map(c => c.id === editItem.id ? editItem : c)
-      : [...coaches, editItem];
-    
-    setPageContent({
-      ...pageContent,
-      coaches: updatedCoaches
-    });
-    
-    setEditItem(null);
-    setEditMode(false);
-    saveData();
+  const handleSaveCoach = async () => {
+    try {
+      const coaches = pageContent.coaches || [];
+      
+      // Handle image upload to Firebase Storage if there's a base64 image
+      let updatedItem = { ...editItem };
+      
+      if (editItem.tempImageData && typeof editItem.tempImageData === 'string' && editItem.tempImageData.startsWith('data:')) {
+        try {
+          console.log("Uploading coach image to Firebase Storage");
+          const storagePath = `coaches/coach_${editItem.id}`;
+          const imageUrl = await uploadImageDataUrl(editItem.tempImageData, storagePath);
+          console.log("Coach image uploaded, URL:", imageUrl);
+          
+          // Replace the base64 with the URL
+          updatedItem.image = imageUrl;
+          delete updatedItem.tempImageData; // Remove the temporary data
+        } catch (uploadError) {
+          console.error("Error uploading coach image to Firebase Storage:", uploadError);
+          // Continue with saving the coach data even if image upload fails
+        }
+      }
+      
+      const updatedCoaches = editItem.id 
+        ? coaches.map(c => c.id === editItem.id ? updatedItem : c)
+        : [...coaches, updatedItem];
+      
+      setPageContent({
+        ...pageContent,
+        coaches: updatedCoaches
+      });
+      
+      setEditItem(null);
+      setEditMode(false);
+      saveData();
+    } catch (error) {
+      console.error("Error saving coach:", error);
+      alert("There was an error saving the coach. Please try again.");
+    }
   };
   
   const handleDeleteCoach = (id: number) => {
@@ -156,7 +190,7 @@ const AdminPage: React.FC = () => {
       reader.onloadend = () => {
         // Convert image to base64 data URL
         const base64String = reader.result as string;
-        setEditItem({...editItem, image: base64String});
+        setEditItem({...editItem, image: base64String, tempImageData: base64String});
       };
       
       reader.onerror = () => {
@@ -222,7 +256,8 @@ const AdminPage: React.FC = () => {
           description: '',
           type: 'upcoming',
           result: '',
-          livestreamLink: ''
+          livestreamLink: '',
+          image: ''
         });
         break;
       case 'news':
@@ -269,53 +304,138 @@ const AdminPage: React.FC = () => {
     setEditItem({ ...editItem, [name]: newValue });
   };
 
-  const handleSaveItem = () => {
-    // For player editing in team management
-    if (editItem && 'team' in editItem && 'isCaptain' in editItem && selectedTeam) {
-      if (players.find(p => p.id === editItem.id)) {
-        setPlayers(players.map(p => p.id === editItem.id ? editItem : p));
+  const handleSaveItem = async () => {
+    try {
+      console.log("Saving item:", editItem);
+      
+      // For player editing in team management
+      if (editItem && 'team' in editItem && 'isCaptain' in editItem) {
+        console.log("Saving player:", editItem);
+        
+        // Handle image upload to Firebase Storage if there's a base64 image
+        let updatedItem = { ...editItem };
+        
+        // Check if we have a file to upload (preferred method)
+        if (editItem.imageFile instanceof File) {
+          try {
+            console.log("Uploading player image to Firebase Storage using File API");
+            
+            // Use the uploadPlayerImageAndSave function for the complete workflow
+            const imageUrl = await uploadPlayerImageAndSave(editItem.imageFile, editItem.id.toString());
+            console.log("Player image workflow completed successfully. URL:", imageUrl);
+            
+            // Replace the base64 with the URL from getDownloadURL()
+            updatedItem.image = imageUrl;
+            delete updatedItem.tempImageData; // Remove the temporary data
+            delete updatedItem.imageFile; // Remove the file object
+          } catch (uploadError) {
+            console.error("Error in player image upload workflow:", uploadError);
+            console.error("Upload error details:", uploadError);
+          }
+        }
+        // Fallback to base64 upload if no File object is available
+        else if (editItem.tempImageData && typeof editItem.tempImageData === 'string' && editItem.tempImageData.startsWith('data:')) {
+          try {
+            console.log("Uploading player image to Firebase Storage using base64 data");
+            // Use a consistent path format with timestamp
+            const storagePath = `players/player_${editItem.id}_${Date.now()}`;
+            
+            // Use our improved uploadImageDataUrl function that handles CORS properly
+            const imageUrl = await uploadImageDataUrl(editItem.tempImageData, storagePath);
+            console.log("Image uploaded URL:", imageUrl);
+            
+            // Replace the base64 with the URL from getDownloadURL()
+            updatedItem.image = imageUrl;
+            delete updatedItem.tempImageData; // Remove the temporary data
+            
+            // Log the final player object that will be saved
+            console.log("Player with image URL to be saved:", updatedItem);
+          } catch (uploadError) {
+            console.error("Error uploading image to Firebase Storage:", uploadError);
+            console.error("Error details:", uploadError);
+            // Continue with saving the player data even if image upload fails
+          }
+        }
+        
+        if (players.find(p => p.id === editItem.id)) {
+          const updatedPlayers = players.map(p => p.id === editItem.id ? updatedItem : p);
+          console.log("Updating existing player, new players array:", updatedPlayers);
+          setPlayers(updatedPlayers);
+        } else {
+          const newPlayers = [...players, updatedItem];
+          console.log("Adding new player, new players array:", newPlayers);
+          setPlayers(newPlayers);
+        }
+        
+        // Save players to Firestore (URLs instead of Base64)
+        let playersToSave;
+        if (players.find(p => p.id === editItem.id)) {
+          playersToSave = players.map(p => p.id === editItem.id ? updatedItem : p);
+        } else {
+          playersToSave = [...players, updatedItem];
+        }
+        
+        await setDoc(doc(db, 'website', 'players'), { data: playersToSave });
+        
+        // Save to localStorage as well for backup
+        localStorage.setItem('players', JSON.stringify(playersToSave));
+        console.log("Players saved to Firestore and localStorage");
       } else {
-        setPlayers([...players, editItem]);
+        // Handle other data types
+        switch (activeTab) {
+          case 'alumni':
+            if (alumni.find(a => a.id === editItem.id)) {
+              setAlumni(alumni.map(a => a.id === editItem.id ? editItem : a));
+            } else {
+              setAlumni([...alumni, editItem]);
+            }
+            break;
+          case 'events':
+            if (events.find(e => e.id === editItem.id)) {
+              setEvents(events.map(e => e.id === editItem.id ? editItem : e));
+            } else {
+              setEvents([...events, editItem]);
+            }
+            break;
+          case 'news':
+            if (news.find(n => n.id === editItem.id)) {
+              setNews(news.map(n => n.id === editItem.id ? editItem : n));
+            } else {
+              setNews([...news, editItem]);
+            }
+            break;
+          case 'teams':
+            if (teams.find(t => t.id === editItem.id)) {
+              setTeams(teams.map(t => t.id === editItem.id ? editItem : t));
+            } else {
+              setTeams([...teams, editItem]);
+            }
+            break;
+          case 'settings':
+            // Update the site settings
+            setSiteSettings(editItem);
+            break;
+          case 'players':
+            if (players.find(p => p.id === editItem.id)) {
+              setPlayers(players.map(p => p.id === editItem.id ? editItem : p));
+            } else {
+              setPlayers([...players, editItem]);
+            }
+            break;
+        }
+        
+        // For other data types that still use the saveData method
+        console.log("Calling saveData for other data types...");
+        await saveData();
+        console.log("Save completed via saveData");
       }
-    } else {
-      switch (activeTab) {
-      case 'alumni':
-        if (alumni.find(a => a.id === editItem.id)) {
-          setAlumni(alumni.map(a => a.id === editItem.id ? editItem : a));
-        } else {
-          setAlumni([...alumni, editItem]);
-        }
-        break;
-      case 'events':
-        if (events.find(e => e.id === editItem.id)) {
-          setEvents(events.map(e => e.id === editItem.id ? editItem : e));
-        } else {
-          setEvents([...events, editItem]);
-        }
-        break;
-      case 'news':
-        if (news.find(n => n.id === editItem.id)) {
-          setNews(news.map(n => n.id === editItem.id ? editItem : n));
-        } else {
-          setNews([...news, editItem]);
-        }
-        break;
-      case 'teams':
-        if (teams.find(t => t.id === editItem.id)) {
-          setTeams(teams.map(t => t.id === editItem.id ? editItem : t));
-        } else {
-          setTeams([...teams, editItem]);
-        }
-        break;
-      case 'settings':
-        // Update the site settings
-        setSiteSettings(editItem);
-        break;
+      
+      setEditItem(null);
+      setEditMode(false);
+    } catch (error) {
+      console.error("Error saving item:", error);
+      alert("There was an error saving. Please try again.");
     }
-    }
-    saveData();
-    setEditItem(null);
-    setEditMode(false);
   };
 
   const handleDeleteItem = (id: number) => {
@@ -471,6 +591,7 @@ const AdminPage: React.FC = () => {
           <EventForm 
             event={editItem as Event}
             onInputChange={handleInputChange}
+            onImageUpload={(imageUrl) => setEditItem({...editItem, image: imageUrl})}
             onSave={handleSaveItem}
             onCancel={handleCancelEdit}
           />
@@ -597,9 +718,19 @@ const AdminPage: React.FC = () => {
             <div className={`event-badge ${event.type === 'past' ? 'past-event' : ''}`}>
               {event.type === 'upcoming' ? 'Upcoming' : 'Past'}
             </div>
-            <h3>{event.title}</h3>
-            <p><strong>Date:</strong> {new Date(event.date).toLocaleDateString()}</p>
-            <p><strong>Location:</strong> {event.location}</p>
+            <div className="event-header">
+              {event.image && (
+                <div 
+                  className="event-image" 
+                  style={{ backgroundImage: `url(${event.image})`, width: '100px', height: '100px', backgroundSize: 'cover', marginRight: '10px' }}
+                ></div>
+              )}
+              <div className="event-details">
+                <h3>{event.title}</h3>
+                <p><strong>Date:</strong> {new Date(event.date).toLocaleDateString()}</p>
+                <p><strong>Location:</strong> {event.location}</p>
+              </div>
+            </div>
             <p className="item-description">{event.description}</p>
             {event.result && <p><strong>Result:</strong> {event.result}</p>}
             {event.livestreamLink && (

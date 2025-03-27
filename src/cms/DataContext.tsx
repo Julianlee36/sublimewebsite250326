@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
-import { ref, uploadString, getDownloadURL } from 'firebase/storage';
-import { db, storage } from '../firebase/config';
+import { db } from '../firebase/config';
 
 // Define types for our data
 export interface Player {
@@ -30,9 +29,10 @@ export interface Event {
   date: string;
   location: string;
   description: string;
-  type: 'upcoming' | 'past';
+  type: 'upcoming' | 'current' | 'past';
   result?: string;
   livestreamLink?: string;
+  image?: string;
 }
 
 export interface NewsItem {
@@ -90,47 +90,14 @@ interface DataContextType {
   setSiteSettings: React.Dispatch<React.SetStateAction<SiteSettings>>;
   saveData: () => void;
   loadData: () => void;
+  refreshData: () => void;
 }
 
 // Create the context
 const DataContext = createContext<DataContextType | undefined>(undefined);
 
-// Sample initial data
-const initialPlayers: Player[] = [
-  {
-    id: 1,
-    name: 'Alex Chen',
-    position: 'Handler',
-    number: 7,
-    years: 4,
-    bio: 'Team captain and primary handler. Known for precise throws and field vision.',
-    isCaptain: true,
-    image: null,
-    team: 'A Team'
-  },
-  {
-    id: 2,
-    name: 'Taylor Smith',
-    position: 'Cutter',
-    number: 12,
-    years: 3,
-    bio: 'Deep threat with exceptional speed and jumping ability.',
-    isCaptain: false,
-    image: null,
-    team: 'A Team'
-  },
-  {
-    id: 3,
-    name: 'Jordan Garcia',
-    position: 'Handler',
-    number: 21,
-    years: 5,
-    bio: 'Veteran handler with leadership experience and consistent throws.',
-    isCaptain: true,
-    image: null,
-    team: 'B Team'
-  }
-];
+// Empty initial players
+const initialPlayers: Player[] = [];
 
 const initialAlumni: Alumni[] = [
   {
@@ -160,6 +127,16 @@ const initialEvents: Event[] = [
   },
   {
     id: 2,
+    title: 'Regional Championship',
+    date: '2025-03-22',
+    location: 'City Sports Complex',
+    description: 'Ongoing championship tournament with teams from across the region.',
+    type: 'current',
+    result: 'In Group Stage - Won 2, Lost 1',
+    livestreamLink: 'https://livestream.example.com/regional-championship'
+  },
+  {
+    id: 3,
     title: 'Winter Invitational',
     date: '2024-12-10',
     location: 'Indoor Sports Complex',
@@ -286,39 +263,48 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   // Save data to Firebase Firestore
   const saveData = async () => {
     try {
-      // Store data collections in Firestore
-      await setDoc(doc(db, 'website', 'players'), { data: players });
-      await setDoc(doc(db, 'website', 'alumni'), { data: alumni });
-      await setDoc(doc(db, 'website', 'events'), { data: events });
-      await setDoc(doc(db, 'website', 'news'), { data: news });
-      await setDoc(doc(db, 'website', 'teams'), { data: teams });
+      console.log('Saving data to Firestore...');
+      
+      // Sanitize data for Firestore to avoid "invalid nested entity" errors
+      const sanitizeData = (data: any[]): any[] => {
+        return data.map(item => {
+          const sanitized: any = { ...item };
+          
+          // Handle large image strings by storing a placeholder in Firestore
+          if (sanitized.image && typeof sanitized.image === 'string' && sanitized.image.length > 10000) {
+            sanitized.image = '[Image data stored locally]';
+          }
+          
+          return sanitized;
+        });
+      };
+      
+      // Store data collections in Firestore with sanitization
+      // Players are handled specially in AdminPage.tsx
+      await setDoc(doc(db, 'website', 'alumni'), { data: sanitizeData(alumni) });
+      await setDoc(doc(db, 'website', 'events'), { data: events }); // Events don't have image data
+      await setDoc(doc(db, 'website', 'news'), { data: sanitizeData(news) });
+      await setDoc(doc(db, 'website', 'teams'), { data: teams }); // Teams don't have complex data
       
       // Special handling for pageContent with images
-      await setDoc(doc(db, 'website', 'pageContent'), { 
-        data: {
-          ...pageContent,
-          // Handle images if needed
-        }
-      });
+      const sanitizedPageContent = { 
+        ...pageContent,
+        coaches: pageContent.coaches ? sanitizeData(pageContent.coaches) : [],
+        // We now store image URLs in Firebase Storage, so we just use the URL
+        aboutImage: pageContent.aboutImage
+      };
       
-      // Special handling for site settings with hero image
+      await setDoc(doc(db, 'website', 'pageContent'), { data: sanitizedPageContent });
+      
+      // special handling for site settings with hero image
       const siteSettingsToSave = { ...siteSettings };
       
-      // If there's a hero background image in base64 format, upload it to storage
-      if (siteSettings.heroBackgroundImage && siteSettings.heroBackgroundImage.startsWith('data:image')) {
-        try {
-          const storageRef = ref(storage, 'images/hero-background.jpg');
-          await uploadString(storageRef, siteSettings.heroBackgroundImage, 'data_url');
-          const downloadURL = await getDownloadURL(storageRef);
-          siteSettingsToSave.heroBackgroundImage = downloadURL;
-        } catch (error) {
-          console.error("Error uploading hero image:", error);
-        }
-      }
+      // We now store image URLs in Firebase Storage, so no need to sanitize
+      // The heroBackgroundImage field should contain a URL now, not base64 data
       
       await setDoc(doc(db, 'website', 'siteSettings'), { data: siteSettingsToSave });
       
-      // Also save to localStorage for quicker access
+      // Also save FULL data to localStorage for quicker access
       localStorage.setItem('players', JSON.stringify(players));
       localStorage.setItem('alumni', JSON.stringify(alumni));
       localStorage.setItem('events', JSON.stringify(events));
@@ -327,8 +313,18 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       localStorage.setItem('pageContent', JSON.stringify(pageContent));
       localStorage.setItem('siteSettings', JSON.stringify(siteSettings));
       
+      // Special case to clear existing test players if needed
+      if (players.length === 0) {
+        console.log('Clearing any test players from both localStorage and Firestore');
+        localStorage.removeItem('players');
+        await setDoc(doc(db, 'website', 'players'), { data: [] });
+      }
+      
+      console.log('Data saved to Firestore successfully (sanitized) and localStorage (full)');
+      
     } catch (error) {
       console.error("Error saving data to Firestore:", error);
+      throw error; // Re-throw to allow handling in the calling component
     }
   };
 
@@ -375,19 +371,80 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     }
   };
 
-  // Load data when component mounts
+  // Force refresh data from Firestore - use this function after saving
+  const refreshData = async () => {
+    try {
+      console.log('Refreshing data from Firestore and localStorage...');
+      
+      // We're going to prioritize localStorage data for completeness,
+      // but we'll keep checking Firestore for confirmation
+      
+      try {
+        // Check if we have data in Firestore just to confirm our data is getting saved
+        const playersDoc = await getDoc(doc(db, 'website', 'players'));
+        if (playersDoc.exists()) {
+          console.log('Firestore players data exists:', playersDoc.data().data ? 
+            `${playersDoc.data().data.length} players found` : 'No player data');
+        } else {
+          console.log('No players document in Firestore');
+        }
+      } catch (firestoreError) {
+        console.error("Error checking Firestore:", firestoreError);
+      }
+      
+      // Primary data loading from localStorage for the full experience
+      const loadFromLocalStorage = (key: string, setter: React.Dispatch<React.SetStateAction<any>>, _initialData: any): boolean => {
+        try {
+          const data = localStorage.getItem(key);
+          if (data) {
+            const parsedData = JSON.parse(data);
+            setter(parsedData);
+            console.log(`Loaded ${key} from localStorage:`, 
+              Array.isArray(parsedData) ? `${parsedData.length} items` : 'object');
+            return true;
+          }
+        } catch (error) {
+          console.error(`Error loading ${key} from localStorage:`, error);
+        }
+        return false;
+      };
+      
+      // Try to load from localStorage for each data type
+      const playersLoaded = loadFromLocalStorage('players', setPlayers, initialPlayers);
+      const teamsLoaded = loadFromLocalStorage('teams', setTeams, initialTeams);
+      const alumniLoaded = loadFromLocalStorage('alumni', setAlumni, initialAlumni);
+      const eventsLoaded = loadFromLocalStorage('events', setEvents, initialEvents);
+      const newsLoaded = loadFromLocalStorage('news', setNews, initialNews);
+      const pageContentLoaded = loadFromLocalStorage('pageContent', setPageContent, initialPageContent);
+      const settingsLoaded = loadFromLocalStorage('siteSettings', setSiteSettings, initialSiteSettings);
+      
+      console.log('Data refresh completed, loaded from localStorage:', { 
+        playersLoaded, teamsLoaded, alumniLoaded, eventsLoaded, 
+        newsLoaded, pageContentLoaded, settingsLoaded 
+      });
+      
+    } catch (error) {
+      console.error("Error refreshing data:", error);
+    }
+  };
+
+  // Setup initial data loading only
   useEffect(() => {
+    // Initial load
     loadData();
+    
+    // No real-time listeners to avoid constant updates and errors
   }, []);
   
   // Save data when it changes
-  useEffect(() => {
-    const timeoutId = setTimeout(() => {
-      saveData();
-    }, 500); // Debounce saves to reduce writes
-    
-    return () => clearTimeout(timeoutId);
-  }, [players, alumni, events, news, teams, pageContent, siteSettings]);
+  // Disable the automatic save that might be causing issues
+  // useEffect(() => {
+  //   const timeoutId = setTimeout(() => {
+  //     saveData();
+  //   }, 1000); // Increased debounce time to ensure complete saves
+  //   
+  //   return () => clearTimeout(timeoutId);
+  // }, [players, alumni, events, news, teams, pageContent, siteSettings]);
 
   const value = {
     players,
@@ -406,6 +463,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     setSiteSettings,
     saveData,
     loadData,
+    refreshData,
   };
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;

@@ -1,8 +1,73 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useData } from '../cms/DataContext';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../firebase/config';
+import ImageWithFallback from '../components/ImageWithFallback';
 
 const Roster: React.FC = () => {
-  const { players } = useData();
+  const { players, refreshData } = useData();
+  const [debugInfo, setDebugInfo] = useState({ showDebug: false, imageUrls: [] });
+  
+  // Force refresh data when component mounts
+  useEffect(() => {
+    const loadRosterData = async () => {
+      try {
+        console.log("Roster page: Loading data directly from Firestore");
+        const playersDoc = await getDoc(doc(db, 'website', 'players'));
+        
+        if (playersDoc.exists() && playersDoc.data().data) {
+          const firestorePlayers = playersDoc.data().data;
+          console.log("Roster page: Direct Firestore data:", firestorePlayers);
+          
+          // Extract image URLs for debugging
+          const imageUrls = firestorePlayers
+            .filter((player: any) => player.image)
+            .map((player: any) => ({
+              playerId: player.id,
+              playerName: player.name,
+              imageUrl: player.image
+            }));
+          
+          setDebugInfo(prev => ({ ...prev, imageUrls }));
+          
+          // We don't update state here, just logging to check what's in Firestore
+        } else {
+          console.log("Roster page: No data found in Firestore");
+        }
+      } catch (error) {
+        console.error("Error loading roster data:", error);
+      }
+    };
+    
+    // Load both ways to compare
+    loadRosterData();
+    refreshData();
+  }, []);
+  
+  // Debug helper to verify image URLs
+  const toggleDebugInfo = () => {
+    setDebugInfo(prev => ({ ...prev, showDebug: !prev.showDebug }));
+  };
+  
+  
+  // Commented out: This was clearing all players from localStorage and Firestore on page load
+  // useEffect(() => {
+  //   const clearMockPlayers = async () => {
+  //     try {
+  //       // Clear players array
+  //       setPlayers([]);
+  //       // Save empty array to localStorage
+  //       localStorage.removeItem('players');
+  //       // Save empty array to Firestore
+  //       await setDoc(doc(db, 'website', 'players'), { data: [] });
+  //       console.log("All players have been cleared from localStorage and Firestore");
+  //     } catch (error) {
+  //       console.error("Error clearing players:", error);
+  //     }
+  //   };
+  //   
+  //   clearMockPlayers();
+  // }, []);
   
   // Filter for teams and captains
   const [filter, setFilter] = useState('all');
@@ -19,7 +84,57 @@ const Roster: React.FC = () => {
   return (
     <div className="roster-page">
       <div className="container">
-        <h1>Team Roster</h1>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h1>Team Roster</h1>
+          <div>
+            <button 
+              style={{ padding: '8px 16px', borderRadius: '4px', cursor: 'pointer', marginRight: '10px' }}
+              onClick={toggleDebugInfo}
+            >
+              {debugInfo.showDebug ? 'Hide Debug' : 'Debug Images'}
+            </button>
+            <button 
+              style={{ padding: '8px 16px', borderRadius: '4px', cursor: 'pointer' }}
+              onClick={() => refreshData()}
+            >
+              ↻ Refresh
+            </button>
+          </div>
+        </div>
+        
+        {/* Debug Panel - Only visible when debug is enabled */}
+        {debugInfo.showDebug && (
+          <div style={{ 
+            margin: '20px 0', 
+            padding: '15px', 
+            border: '1px solid #ddd', 
+            borderRadius: '4px',
+            background: '#f5f5f5' 
+          }}>
+            <h3>Debug Info - Stored Image URLs</h3>
+            {debugInfo.imageUrls.length > 0 ? (
+              <div>
+                {debugInfo.imageUrls.map((item: { playerId: string|number; playerName: string; imageUrl: string }, index) => (
+                  <div key={index} style={{ marginBottom: '10px', borderBottom: '1px solid #eee', paddingBottom: '10px' }}>
+                    <p><strong>Player ID:</strong> {item.playerId} - {item.playerName}</p>
+                    <p style={{ wordBreak: 'break-all' }}><strong>Image URL:</strong> {item.imageUrl}</p>
+                    <div>
+                      <p><strong>Image Preview:</strong></p>
+                      <ImageWithFallback 
+                        src={item.imageUrl} 
+                        alt={`${item.playerName} preview`}
+                        fallbackSrc=""
+                        style={{ maxWidth: '100px', maxHeight: '100px', border: '1px solid #ddd' }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p>No image URLs found in player data. Add players with images first.</p>
+            )}
+          </div>
+        )}
         
         <section className="player-profiles">
           <h2>Player Profiles</h2>
@@ -57,10 +172,12 @@ const Roster: React.FC = () => {
                 <div key={player.id} className="player-card">
                   <div className="player-image">
                     {player.image ? (
-                      <div 
-                        className="player-photo" 
-                        style={{ backgroundImage: `url(${player.image})` }}
-                      ></div>
+                      <ImageWithFallback
+                        src={player.image}
+                        alt={`${player.name} #${player.number}`}
+                        fallbackSrc="/placeholder-player.jpg"
+                        className="player-photo"
+                      />
                     ) : (
                       <div className="image-placeholder">
                         #{player.number}
@@ -91,10 +208,12 @@ const Roster: React.FC = () => {
                         <div key={player.id} className="player-card">
                           <div className="player-image">
                             {player.image ? (
-                              <div 
-                                className="player-photo" 
-                                style={{ backgroundImage: `url(${player.image})` }}
-                              ></div>
+                              <ImageWithFallback
+                                src={player.image}
+                                alt={`${player.name} #${player.number}`}
+                                fallbackSrc="/placeholder-player.jpg"
+                                className="player-photo"
+                              />
                             ) : (
                               <div className="image-placeholder">
                                 #{player.number}

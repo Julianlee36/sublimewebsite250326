@@ -8,7 +8,7 @@
 /* Main Content */
 .main-content {
   flex: 1;
-  padding: 2rem 0;
+  padding: 0; /* Removed vertical padding */
 }
 
 /* Navbar */
@@ -251,6 +251,19 @@
   padding: 2rem;
 }
 
+/* Add padding to pages without hero banner */
+.about-page,
+.roster-page,
+.schedule-page,
+.news-page,
+.media-page,
+.playbook-page,
+.sponsors-page,
+.recruitment-page,
+.contact-page {
+  padding-top: 2rem;
+}
+
 /* Home page sections - special styling */
 .home-page section {
   background-color: var(--white);
@@ -372,8 +385,8 @@
 .coach-photo {
   width: 100%;
   height: 100%;
-  background-size: cover;
-  background-position: center;
+  object-fit: cover;
+  object-position: center;
 }
 
 .coach-info {
@@ -465,9 +478,8 @@
 .player-image .player-photo {
   width: 100%;
   height: 100%;
-  background-size: cover;
-  background-position: center top;
-  background-repeat: no-repeat;
+  object-fit: cover;
+  object-position: center top;
 }
 
 .captain-badge {
