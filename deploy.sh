@@ -30,7 +30,7 @@ echo "✅ Build completed successfully"
 
 # 3. Deploy to Firebase
 echo "🚀 Deploying to Firebase..."
-firebase deploy
+npx firebase-tools@11.30.0 deploy --only hosting
 if [ $? -eq 0 ]; then
   echo "✅ Deployment successful!"
   echo "🌎 Website is live at: https://sublimewebsite20250326.web.app"

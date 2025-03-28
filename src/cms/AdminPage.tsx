@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useData, Event, SiteSettings, Team, Coach } from './DataContext';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { uploadImageDataUrl, uploadImageFile, uploadPlayerImageAndSave } from '../firebase/imageUtils';
 import EventForm from './EventForm';
@@ -137,15 +137,36 @@ const AdminPage: React.FC = () => {
   
   const handleSaveCoach = async () => {
     try {
-      const coaches = pageContent?.coaches || [];
+      // Explicitly log what we're starting with
+      console.log("Starting handleSaveCoach with:", {
+        editItem: editItem ? {
+          id: editItem.id,
+          name: editItem.name,
+          role: editItem.role,
+          hasImage: !!editItem.image || !!(editItem.tempImageData)
+        } : null,
+        existingCoaches: (pageContent?.coaches || []).length
+      });
       
-      // Handle image upload to Firebase Storage if there's a base64 image
-      let updatedItem = { ...editItem };
+      // Ensure we have a valid coach object to work with
+      if (!editItem || typeof editItem !== 'object') {
+        throw new Error("Invalid coach data: editItem is missing or not an object");
+      }
       
+      // Make sure we have a copy of the existing coaches
+      const coaches = Array.isArray(pageContent?.coaches) ? [...pageContent.coaches] : [];
+      console.log(`Working with ${coaches.length} existing coaches`);
+      
+      // Make a deep copy of the edit item to avoid reference issues
+      let updatedItem = JSON.parse(JSON.stringify(editItem));
+      
+      // Check for and upload any image data
       if (editItem && 'tempImageData' in editItem && typeof editItem.tempImageData === 'string' && editItem.tempImageData.startsWith('data:')) {
         try {
           console.log("Uploading coach image to Firebase Storage");
-          const storagePath = `coaches/coach_${editItem && 'id' in editItem ? editItem.id : '0'}`;
+          // Add timestamp to the path to ensure uniqueness
+          const timestamp = Date.now();
+          const storagePath = `coaches/coach_${editItem && 'id' in editItem ? editItem.id : '0'}_${timestamp}`;
           const imageUrl = await uploadImageDataUrl(
             editItem.tempImageData, 
             storagePath
@@ -157,24 +178,143 @@ const AdminPage: React.FC = () => {
           delete updatedItem.tempImageData; // Remove the temporary data
         } catch (uploadError) {
           console.error("Error uploading coach image to Firebase Storage:", uploadError);
-          // Continue with saving the coach data even if image upload fails
         }
       }
       
-      const itemId = editItem && 'id' in editItem ? editItem.id : null;
-      const updatedCoaches = itemId 
-        ? coaches.map(c => c.id === itemId ? updatedItem : c)
-        : [...coaches, updatedItem];
+      // Verify we have the required coach fields before saving
+      if (!updatedItem.name || !updatedItem.role) {
+        console.warn("Coach is missing required fields:", updatedItem);
+        updatedItem.name = updatedItem.name || "Coach";
+        updatedItem.role = updatedItem.role || "Coach";
+      }
       
-      setPageContent({
+      // Ensure the item has a valid ID
+      const itemId = updatedItem.id || Math.max(0, ...coaches.map((c: any) => c.id || 0)) + 1;
+      updatedItem.id = itemId;
+      
+      console.log("Ready to save coach with ID:", itemId, 
+          "Is this a new coach?", !coaches.some((c: any) => c.id === itemId));
+      
+      // Update the coaches array
+      let updatedCoaches;
+      if (coaches.some((c: any) => c.id === itemId)) {
+        // Update existing coach
+        updatedCoaches = coaches.map((c: any) => c.id === itemId ? updatedItem : c);
+        console.log("Updated existing coach with ID:", itemId);
+      } else {
+        // Add new coach
+        updatedCoaches = [...coaches, updatedItem];
+        console.log("Added new coach with ID:", itemId);
+      }
+      
+      console.log("Final coaches array has", updatedCoaches.length, "coaches");
+      
+      // Create updated pageContent
+      const updatedPageContent = {
         ...pageContent,
         coaches: updatedCoaches,
         aboutImage: pageContent?.aboutImage || '' // Ensure aboutImage is defined
+      };
+      
+      // Update local state first to ensure UI responds immediately
+      setPageContent(updatedPageContent);
+      
+      // Save directly to Firestore to ensure immediate persistence
+      // Create a sanitized version for Firestore, but keep the actual image URLs
+      const sanitizedPageContent = { 
+        ...updatedPageContent,
+        coaches: updatedCoaches.map(coach => ({...coach}))
+      };
+      
+      // Log the data we're about to save for debugging
+      console.log("About to save pageContent with coaches to Firestore:", {
+        coachCount: sanitizedPageContent.coaches.length,
+        coachNames: sanitizedPageContent.coaches.map((c: any) => c.name)
       });
       
+      // Double-check we actually have coaches before saving
+      if (sanitizedPageContent.coaches.length === 0 && updatedCoaches.length > 0) {
+        console.error("CRITICAL ERROR: coaches array is empty in sanitizedPageContent but not in updatedCoaches");
+        // Force the coaches array to be correct
+        sanitizedPageContent.coaches = [...updatedCoaches];
+      }
+      
+      // Make sure we have non-empty data
+      if (!sanitizedPageContent.coaches || sanitizedPageContent.coaches.length === 0) {
+        console.warn("WARNING: No coaches found in data to save. Adding the current coach directly.");
+        sanitizedPageContent.coaches = [updatedItem];
+      }
+      
+      // Save to Firestore using a more direct approach with a document path
+      try {
+        // First update localStorage for backup and immediate access
+        localStorage.setItem('pageContent', JSON.stringify(updatedPageContent));
+        console.log("Saved to localStorage:", updatedPageContent.coaches.length, "coaches");
+        
+        try {
+          // Save directly to the global context to ensure component state is updated
+          console.log("Updating application state with new coaches (before Firestore save)");
+          setPageContent(updatedPageContent);
+        } catch (stateError) {
+          console.error("Error updating state:", stateError);
+        }
+        
+        // Then save to Firestore (with retry logic)
+        const pageContentRef = doc(db, 'website', 'pageContent');
+        
+        // Try saving multiple times if needed
+        let saveSuccess = false;
+        for (let attempt = 1; attempt <= 3 && !saveSuccess; attempt++) {
+          try {
+            console.log(`Firestore save attempt ${attempt}...`);
+            await setDoc(pageContentRef, { data: sanitizedPageContent });
+            saveSuccess = true;
+            console.log(`Firestore pageContent save successful (attempt ${attempt}) with ${sanitizedPageContent.coaches.length} coaches`);
+          } catch (saveError) {
+            console.error(`Save attempt ${attempt} failed:`, saveError);
+            if (attempt === 3) throw saveError; // Re-throw on final attempt
+            await new Promise(resolve => setTimeout(resolve, 500)); // Wait before retrying
+          }
+        }
+        
+        // Verify the save by reading back from Firestore
+        const savedDoc = await getDoc(pageContentRef);
+        if (savedDoc.exists()) {
+          const savedData = savedDoc.data()?.data;
+          console.log("Verified saved data:", {
+            coachCount: savedData?.coaches?.length || 0,
+            coachIds: savedData?.coaches?.map((c: any) => c.id) || []
+          });
+          
+          // If verification shows no coaches, try one more emergency save
+          if (!savedData?.coaches?.length && sanitizedPageContent.coaches.length > 0) {
+            console.warn("VERIFICATION FAILED: Coaches not saved properly. Attempting emergency save...");
+            await setDoc(pageContentRef, { 
+              data: {
+                ...sanitizedPageContent,
+                coaches: [...sanitizedPageContent.coaches] // Ensure deep copy
+              }
+            });
+            console.log("Emergency save completed");
+          }
+        } else {
+          console.error("CRITICAL ERROR: Document not found after save!");
+        }
+      } catch (firestoreError) {
+        console.error("Error saving coaches to Firestore:", firestoreError);
+        alert("There was an error saving to the database. Try manually refreshing and checking if your changes were saved.");
+      }
+      
+      // IMPORTANT: Do NOT call the generic saveData function here
+      // It can overwrite our coach data with stale data from memory
+      console.log("Skipping general saveData call to avoid overwriting coach data");
+      
+      // After everything is done, update UI
       setEditItem(null);
       setEditMode(false);
-      saveData();
+      
+      // Don't force reload anymore as it seems to be causing issues
+      console.log("Coach save completed. Please manually refresh the page if needed.");
     } catch (error) {
       console.error("Error saving coach:", error);
       alert("There was an error saving the coach. Please try again.");

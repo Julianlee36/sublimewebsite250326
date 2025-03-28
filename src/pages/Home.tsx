@@ -13,26 +13,39 @@ const Home: React.FC = () => {
   
   // Force data refresh from Firestore when component mounts
   useEffect(() => {
-    const loadEventData = async () => {
+    const loadData = async () => {
       setIsLoading(true);
       try {
-        // First try direct Firestore access
-        const eventsDoc = await getDoc(doc(db, 'website', 'events'));
-        if (eventsDoc.exists()) {
-          console.log("Home: Got events directly from Firestore:", eventsDoc.data().data);
+        // First refresh data through the DataContext to ensure everything is in sync
+        await refreshData();
+        
+        // Log updated data to confirm
+        console.log("Home: Data refreshed through DataContext");
+        
+        // Additional direct check to confirm Firestore data
+        const pageContentDoc = await getDoc(doc(db, 'website', 'pageContent'));
+        if (pageContentDoc.exists()) {
+          console.log("Home: Direct check of pageContent from Firestore:", pageContentDoc.data().data);
+          const coaches = pageContentDoc.data().data?.coaches || [];
+          console.log("Home: Coaches from Firestore (direct check):", coaches);
         }
         
-        // Then use the DataContext refreshData method to ensure everything is in sync
-        refreshData();
+        // Log localStorage data to confirm it's in sync
+        const localStoragePageContent = localStorage.getItem('pageContent');
+        if (localStoragePageContent) {
+          const parsedContent = JSON.parse(localStoragePageContent);
+          console.log("Home: pageContent from localStorage after refresh:", parsedContent);
+          console.log("Home: Coaches from localStorage after refresh:", parsedContent.coaches || []);
+        }
       } catch (error) {
-        console.error("Error loading event data:", error);
+        console.error("Error loading data:", error);
       } finally {
         setIsLoading(false);
       }
     };
     
-    loadEventData();
-  }, []); // Remove dependency on refreshData to prevent constant refreshing
+    loadData();
+  }, []); // No dependencies to prevent constant refreshing
   
   
   // Get upcoming events from the data context

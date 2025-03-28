@@ -265,6 +265,26 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     try {
       console.log('Saving data to Firestore...');
       
+      // CRITICAL: First, check if there's any existing coach data in Firestore that we should preserve
+      try {
+        const existingPageContentDoc = await getDoc(doc(db, 'website', 'pageContent'));
+        if (existingPageContentDoc.exists() && existingPageContentDoc.data()?.data) {
+          const existingData = existingPageContentDoc.data()?.data;
+          const existingCoaches = existingData?.coaches || [];
+          
+          if (existingCoaches.length > 0 && (!pageContent.coaches || pageContent.coaches.length === 0)) {
+            console.log(`IMPORTANT: Found ${existingCoaches.length} coaches in Firestore but none in memory. Preserving Firestore data.`);
+            // Update our in-memory state to include the coaches from Firestore
+            setPageContent({
+              ...pageContent,
+              coaches: existingCoaches
+            });
+          }
+        }
+      } catch (checkError) {
+        console.error("Error checking existing pageContent:", checkError);
+      }
+      
       // Sanitize data for Firestore to avoid "invalid nested entity" errors
       const sanitizeData = (data: any[]): any[] => {
         return data.map(item => {
@@ -286,10 +306,17 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       await setDoc(doc(db, 'website', 'news'), { data: sanitizeData(news) });
       await setDoc(doc(db, 'website', 'teams'), { data: teams }); // Teams don't have complex data
       
+      // IMPORTANT: For pageContent, we need to ensure we're not wiping out coaches
+      const coachesToSave = pageContent.coaches && pageContent.coaches.length > 0 
+        ? pageContent.coaches 
+        : (await getDoc(doc(db, 'website', 'pageContent'))).data()?.data?.coaches || [];
+        
+      console.log(`Saving pageContent with ${coachesToSave.length} coaches`);
+      
       // Special handling for pageContent with images
       const sanitizedPageContent = { 
         ...pageContent,
-        coaches: pageContent.coaches ? sanitizeData(pageContent.coaches) : [],
+        coaches: coachesToSave.length > 0 ? sanitizeData(coachesToSave) : [],
         // We now store image URLs in Firebase Storage, so we just use the URL
         aboutImage: pageContent.aboutImage
       };
@@ -387,24 +414,90 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     try {
       console.log('Refreshing data from Firestore and localStorage...');
       
-      // We're going to prioritize localStorage data for completeness,
-      // but we'll keep checking Firestore for confirmation
-      
+      // Check Firestore first for latest data
       try {
-        // Check if we have data in Firestore just to confirm our data is getting saved
+        console.log('Checking Firestore for latest data...');
+        
         const playersDoc = await getDoc(doc(db, 'website', 'players'));
-        if (playersDoc.exists()) {
-          console.log('Firestore players data exists:', playersDoc.data()?.data ? 
-            `${playersDoc.data()?.data.length} players found` : 'No player data');
-        } else {
-          console.log('No players document in Firestore');
+        if (playersDoc.exists() && playersDoc.data()?.data) {
+          console.log('Firestore players data exists:', 
+            `${playersDoc.data()?.data.length} players found`);
+          setPlayers(playersDoc.data().data);
         }
+        
+        const pageContentDoc = await getDoc(doc(db, 'website', 'pageContent'));
+        if (pageContentDoc.exists() && pageContentDoc.data()?.data) {
+          console.log('Firestore pageContent data exists, includes coaches:', 
+            `${pageContentDoc.data()?.data.coaches?.length || 0} coaches found`);
+          
+          // Make sure we have complete data structure even if some parts are missing
+          const pageData = pageContentDoc.data()?.data;
+          
+          // Ensure we handle coaches data properly
+          const coaches = pageData?.coaches || [];
+          console.log(`Found ${coaches.length} coaches in Firestore during refresh`);
+          
+          const updatedPageContent = {
+            aboutImage: pageData?.aboutImage || '',
+            coaches: coaches
+          };
+          
+          // Update state
+          setPageContent(updatedPageContent);
+          
+          // Update localStorage with this data too for consistency
+          localStorage.setItem('pageContent', JSON.stringify(updatedPageContent));
+          
+          // Log the updated data to confirm
+          console.log('Updated pageContent with coaches:', updatedPageContent);
+        } else {
+          console.log('No pageContent document in Firestore or missing data structure');
+        }
+        
+        // Continue loading other data types from Firestore
+        const alumniDoc = await getDoc(doc(db, 'website', 'alumni'));
+        if (alumniDoc.exists() && alumniDoc.data()?.data) {
+          setAlumni(alumniDoc.data().data);
+        }
+        
+        const eventsDoc = await getDoc(doc(db, 'website', 'events'));
+        if (eventsDoc.exists() && eventsDoc.data()?.data) {
+          setEvents(eventsDoc.data().data);
+        }
+        
+        const newsDoc = await getDoc(doc(db, 'website', 'news'));
+        if (newsDoc.exists() && newsDoc.data()?.data) {
+          setNews(newsDoc.data().data);
+        }
+        
+        const teamsDoc = await getDoc(doc(db, 'website', 'teams'));
+        if (teamsDoc.exists() && teamsDoc.data()?.data) {
+          setTeams(teamsDoc.data().data);
+        }
+        
+        const siteSettingsDoc = await getDoc(doc(db, 'website', 'siteSettings'));
+        if (siteSettingsDoc.exists() && siteSettingsDoc.data()?.data) {
+          setSiteSettings(siteSettingsDoc.data().data);
+        }
+        
       } catch (firestoreError) {
-        console.error("Error checking Firestore:", firestoreError);
+        console.error("Error fetching data from Firestore:", firestoreError);
+        
+        // If Firestore fails, fall back to localStorage
+        console.log('Falling back to localStorage...');
+        loadFromLocalStorage();
       }
       
-      // Primary data loading from localStorage for the full experience
-      const loadFromLocalStorage = (key: string, setter: React.Dispatch<React.SetStateAction<any>>, _initialData: any): boolean => {
+    } catch (error) {
+      console.error("Error refreshing data:", error);
+    }
+  };
+  
+  // Helper function to load from localStorage
+  const loadFromLocalStorage = () => {
+    try {
+      // Primary data loading from localStorage as fallback
+      const loadData = (key: string, setter: React.Dispatch<React.SetStateAction<any>>): boolean => {
         try {
           const data = localStorage.getItem(key);
           if (data) {
@@ -421,21 +514,20 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       };
       
       // Try to load from localStorage for each data type
-      const playersLoaded = loadFromLocalStorage('players', setPlayers, initialPlayers);
-      const teamsLoaded = loadFromLocalStorage('teams', setTeams, initialTeams);
-      const alumniLoaded = loadFromLocalStorage('alumni', setAlumni, initialAlumni);
-      const eventsLoaded = loadFromLocalStorage('events', setEvents, initialEvents);
-      const newsLoaded = loadFromLocalStorage('news', setNews, initialNews);
-      const pageContentLoaded = loadFromLocalStorage('pageContent', setPageContent, initialPageContent);
-      const settingsLoaded = loadFromLocalStorage('siteSettings', setSiteSettings, initialSiteSettings);
+      const playersLoaded = loadData('players', setPlayers);
+      const teamsLoaded = loadData('teams', setTeams);
+      const alumniLoaded = loadData('alumni', setAlumni);
+      const eventsLoaded = loadData('events', setEvents);
+      const newsLoaded = loadData('news', setNews);
+      const pageContentLoaded = loadData('pageContent', setPageContent);
+      const settingsLoaded = loadData('siteSettings', setSiteSettings);
       
-      console.log('Data refresh completed, loaded from localStorage:', { 
+      console.log('Data loaded from localStorage:', { 
         playersLoaded, teamsLoaded, alumniLoaded, eventsLoaded, 
         newsLoaded, pageContentLoaded, settingsLoaded 
       });
-      
     } catch (error) {
-      console.error("Error refreshing data:", error);
+      console.error("Error loading from localStorage:", error);
     }
   };
 
@@ -443,6 +535,12 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
   useEffect(() => {
     // Initial load
     loadData();
+    
+    // Explicitly refresh the data after initial load, especially needed for coaches
+    setTimeout(() => {
+      console.log("Initial data load timeout completed, refreshing again to ensure latest data");
+      refreshData();
+    }, 2000);
     
     // No real-time listeners to avoid constant updates and errors
   }, []);

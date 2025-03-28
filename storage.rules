@@ -33,6 +33,12 @@ service firebase.storage {
       allow write: if true; // Allow all write operations for sponsors
     }
     
+    // Allow public read access for coaches folder
+    match /coaches/{filename} {
+      allow read: if true;
+      allow write: if true; // Allow all write operations for coaches
+    }
+    
     // Default rule for all paths
     match /{allPaths=**} {
       allow read: if true;
