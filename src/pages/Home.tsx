@@ -8,7 +8,7 @@ import { db } from '../firebase/config';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 const Home: React.FC = () => {
-  const { events: allEvents, campaigns, refreshData } = useData();
+  const { events: allEvents, refreshData } = useData();
   const [isLoading, setIsLoading] = useState(false);
   
   // Force data refresh from Firestore when component mounts
@@ -65,22 +65,21 @@ const Home: React.FC = () => {
       description: event.description
     }));
 
-  // Get active campaigns
-  const activeCampaigns = campaigns && Array.isArray(campaigns) 
-    ? campaigns
-        .filter(campaign => !campaign.endDate || new Date(campaign.endDate) > new Date())
-        .sort((a, b) => {
-          if (a.endDate && b.endDate) {
-            return new Date(a.endDate).getTime() - new Date(b.endDate).getTime();
-          } else if (a.endDate) {
-            return -1;
-          } else if (b.endDate) {
-            return 1;
-          }
-          return 0;
-        })
-        .slice(0, 2)
-    : [];
+  // Get ongoing campaigns using the new Event interface
+  const ongoingCampaigns = allEvents
+    .filter(event => event.eventType === 'campaign' && event.type === 'current')
+    .sort((a, b) => {
+      // Sort by end date if available, otherwise by start date
+      if (a.endDate && b.endDate) {
+        return new Date(a.endDate).getTime() - new Date(b.endDate).getTime();
+      } else if (a.endDate) {
+        return -1;
+      } else if (b.endDate) {
+        return 1;
+      }
+      return new Date(a.date).getTime() - new Date(b.date).getTime();
+    })
+    .slice(0, 2);
 
   const quickLinks = [
     { title: 'Team Roster', path: '/roster' },
@@ -133,63 +132,71 @@ const Home: React.FC = () => {
               </div>
             )}
           </div>
-          <Link to="/campaigns" className="view-more">View All Events →</Link>
+          <Link to="/schedule" className="view-more">View All Events →</Link>
         </section>
 
         <section className="active-campaigns">
           <h2>Team Campaigns</h2>
-          {activeCampaigns.length > 0 ? (
+          {ongoingCampaigns.length > 0 ? (
             <div className="campaigns-grid">
-              {activeCampaigns.map(campaign => (
-                <div key={campaign.id} className="campaign-card">
-                  {campaign.image && (
-                    <div 
-                      className="campaign-image" 
-                      style={{ backgroundImage: `url(${campaign.image})` }}
-                    ></div>
-                  )}
-                  {!campaign.image && (
-                    <div className="campaign-image-placeholder">
-                      <span>Support Our Team</span>
-                    </div>
-                  )}
-                  <div className="campaign-content">
-                    <h3>{campaign.title}</h3>
-                    <p className="campaign-description">{campaign.description}</p>
-                    
-                    {(campaign.goalAmount !== undefined && campaign.currentAmount !== undefined) && (
-                      <div className="campaign-progress">
-                        <div className="progress-bar-container">
-                          <div 
-                            className="progress-bar" 
-                            style={{ 
-                              width: `${Math.min(100, (campaign.currentAmount / campaign.goalAmount) * 100)}%`,
-                              backgroundColor: '#4CAF50'
-                            }}
-                          ></div>
-                        </div>
-                        <div className="progress-text">
-                          <span className="amount-text">${campaign.currentAmount} raised</span>
-                          <span className="goal-text">of ${campaign.goalAmount} goal</span>
-                        </div>
+              {ongoingCampaigns.map(campaign => (
+                <Link to={`/event/${campaign.id}`} key={campaign.id} className="campaign-card-link">
+                  <div className="campaign-card">
+                    {campaign.image && (
+                      <div 
+                        className="campaign-image" 
+                        style={{ backgroundImage: `url(${campaign.image})` }}
+                      ></div>
+                    )}
+                    {!campaign.image && (
+                      <div className="campaign-image-placeholder">
+                        <span>Ongoing Campaign</span>
                       </div>
                     )}
-                    
-                    {campaign.endDate && (
-                      <p className="campaign-date">
-                        Ends: {new Date(campaign.endDate).toLocaleDateString()}
-                      </p>
-                    )}
-                    
-                    <button className="support-button">Support This Campaign</button>
+                    <div className="campaign-content">
+                      <h3>{campaign.title}</h3>
+                      
+                      {campaign.teamName && (
+                        <div className="campaign-team">
+                          <span className="team-label">Team:</span> 
+                          <span className="team-name">{campaign.teamName}</span>
+                        </div>
+                      )}
+                      
+                      <p className="campaign-description">{campaign.description}</p>
+                      
+                      <div className="campaign-dates">
+                        <div className="date-item">
+                          <span className="date-label">Started:</span>
+                          <span className="date-value">{new Date(campaign.date).toLocaleDateString()}</span>
+                        </div>
+                        
+                        {campaign.endDate && (
+                          <div className="date-item">
+                            <span className="date-label">Ends:</span>
+                            <span className="date-value">{new Date(campaign.endDate).toLocaleDateString()}</span>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {campaign.location && (
+                        <p className="campaign-location">
+                          <span className="location-icon">📍</span> {campaign.location}
+                        </p>
+                      )}
+                      
+                      <div className="view-campaign-link">
+                        View Campaign Details →
+                      </div>
+                    </div>
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
           ) : (
-            <p>No active campaigns at this time. Check back soon!</p>
+            <p>No ongoing campaigns at this time. Check back soon!</p>
           )}
-          <Link to="/campaigns" className="view-more">View All Campaigns →</Link>
+          <Link to="/schedule" className="view-more">View All Campaigns →</Link>
         </section>
 
         <section className="past-events">

@@ -11,6 +11,7 @@ const EventDetail: React.FC = () => {
   const [event, setEvent] = useState<Event | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState('about');
 
   useEffect(() => {
     const loadEvent = async () => {
@@ -55,32 +56,165 @@ const EventDetail: React.FC = () => {
     return null; // We'll redirect in the useEffect
   }
 
-  // Format date nicely
-  const formattedDate = new Date(event.date).toLocaleDateString('en-US', { 
-    weekday: 'long',
-    year: 'numeric', 
-    month: 'long', 
-    day: 'numeric' 
-  });
+  // Format date(s) nicely
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  };
+  
+  // Create appropriate date display (single date or date range)
+  let dateDisplay;
+  if (event.eventType === 'campaign' && event.endDate) {
+    // For campaigns, show date range
+    const startDate = formatDate(event.date);
+    const endDate = formatDate(event.endDate);
+    dateDisplay = `${startDate} - ${endDate}`;
+  } else {
+    // For single events, show just the date
+    dateDisplay = formatDate(event.date);
+  }
 
   // Determine event status text and background color
   let statusText = '';
   let statusClass = '';
   
-  switch(event.type) {
-    case 'upcoming':
-      statusText = 'Upcoming Event';
-      statusClass = 'upcoming-status';
-      break;
-    case 'current':
-      statusText = 'Ongoing Event';
-      statusClass = 'current-status';
-      break;
-    case 'past':
-      statusText = 'Past Event';
-      statusClass = 'past-status';
-      break;
+  // Update status text based on both type and eventType
+  if (event.type === 'upcoming') {
+    statusText = event.eventType === 'campaign' ? 'Upcoming Campaign' : 'Upcoming Event';
+    statusClass = 'upcoming-status';
+  } else if (event.type === 'current') {
+    statusText = event.eventType === 'campaign' ? 'Ongoing Campaign' : 'Ongoing Event';
+    statusClass = 'current-status';
+  } else if (event.type === 'past') {
+    statusText = event.eventType === 'campaign' ? 'Completed Campaign' : 'Completed Event';
+    statusClass = 'past-status';
   }
+
+  // Function to render tabs based on event type
+  const renderTabs = () => {
+    const tabs = [
+      { id: 'about', label: 'About' }
+    ];
+    
+    // Add roster tab only for campaigns
+    if (event.eventType === 'campaign') {
+      tabs.push({ id: 'roster', label: 'Roster' });
+    }
+    
+    return (
+      <div className="event-tabs">
+        {tabs.map(tab => (
+          <button
+            key={tab.id}
+            className={`tab-button ${activeTab === tab.id ? 'active' : ''}`}
+            onClick={() => setActiveTab(tab.id)}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+    );
+  };
+  
+  // Function to render tab content based on active tab
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'about':
+        return (
+          <div className="tab-content about-tab">
+            <div className="event-description">
+              <p>{event.description}</p>
+            </div>
+            
+            {event.result && (
+              <div className="event-result">
+                <h3>Results</h3>
+                <p>{event.result}</p>
+              </div>
+            )}
+            
+            {event.livestreamLink && (
+              <div className="event-livestream">
+                <h3>Livestream</h3>
+                <a 
+                  href={event.livestreamLink} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="livestream-button"
+                >
+                  Watch Livestream
+                </a>
+              </div>
+            )}
+          </div>
+        );
+      
+      case 'roster':
+        return (
+          <div className="tab-content roster-tab">
+            {event.roster && event.roster.length > 0 ? (
+              <div className="roster-list">
+                {event.roster.map(player => (
+                  <div key={player.id} className="roster-player">
+                    <div className="player-image">
+                      {player.image ? (
+                        <ImageWithFallback
+                          src={player.image}
+                          alt={player.name}
+                          fallbackSrc="/placeholder-player.jpg"
+                        />
+                      ) : (
+                        <div className="player-placeholder">
+                          {player.name.substring(0, 1)}
+                        </div>
+                      )}
+                    </div>
+                    <div className="player-info">
+                      <h3>{player.name} {player.isCaptain && <span className="captain-badge">Captain</span>}</h3>
+                      <p>#{player.number} · {player.position}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="no-roster">Roster information is not available for this campaign yet.</p>
+            )}
+          </div>
+        );
+        
+      default:
+        return null;
+    }
+  };
+  
+  // Function to render gallery section (only for completed events/campaigns)
+  const renderGallery = () => {
+    if (event.type !== 'past' || !event.gallery || event.gallery.length === 0) {
+      return null;
+    }
+    
+    return (
+      <div className="event-gallery">
+        <h2>Gallery</h2>
+        <div className="gallery-grid">
+          {event.gallery.map((image, index) => (
+            <div key={index} className="gallery-item">
+              <ImageWithFallback
+                src={image}
+                alt={`${event.title} image ${index + 1}`}
+                fallbackSrc="/placeholder-gallery.jpg"
+                className="gallery-image"
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="event-detail-page">
@@ -96,59 +230,15 @@ const EventDetail: React.FC = () => {
           
           <h1>{event.title}</h1>
           
-          <div className="event-detail-grid">
-            <div className="event-info">
-              <div className="event-metadata">
-                <div className="metadata-item">
-                  <i className="event-icon date-icon">📅</i>
-                  <span>{formattedDate}</span>
-                </div>
-                <div className="metadata-item">
-                  <i className="event-icon location-icon">📍</i>
-                  <span>{event.location}</span>
-                </div>
+          <div className="event-header">
+            <div className="event-metadata">
+              <div className="metadata-item">
+                <i className="event-icon date-icon">📅</i>
+                <span>{dateDisplay}</span>
               </div>
-              
-              <div className="event-description">
-                <h2>About This Event</h2>
-                <p>{event.description}</p>
-              </div>
-              
-              {event.result && (
-                <div className="event-result">
-                  <h2>Results</h2>
-                  <p>{event.result}</p>
-                </div>
-              )}
-              
-              {event.livestreamLink && (
-                <div className="event-livestream">
-                  <h2>Livestream</h2>
-                  <a 
-                    href={event.livestreamLink} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="livestream-button"
-                  >
-                    Watch Livestream
-                  </a>
-                </div>
-              )}
-              
-              <div className="event-actions">
-                <Link to="/schedule" className="back-button">
-                  Back to Schedule
-                </Link>
-                {event.type === 'upcoming' && (
-                  <a 
-                    href={`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(event.title)}&dates=${encodeURIComponent(event.date)}/${encodeURIComponent(event.date)}&details=${encodeURIComponent(event.description)}&location=${encodeURIComponent(event.location)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="add-calendar-button"
-                  >
-                    Add to Calendar
-                  </a>
-                )}
+              <div className="metadata-item">
+                <i className="event-icon location-icon">📍</i>
+                <span>{event.location}</span>
               </div>
             </div>
             
@@ -168,6 +258,33 @@ const EventDetail: React.FC = () => {
                 </div>
               )}
             </div>
+          </div>
+          
+          {/* Tabs interface */}
+          {renderTabs()}
+          
+          {/* Tab content */}
+          <div className="event-tab-content">
+            {renderTabContent()}
+          </div>
+          
+          {/* Gallery section (only for completed events) */}
+          {renderGallery()}
+          
+          <div className="event-actions">
+            <Link to="/schedule" className="back-button">
+              Back to Schedule
+            </Link>
+            {event.type === 'upcoming' && (
+              <a 
+                href={`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(event.title)}&dates=${encodeURIComponent(event.date)}/${encodeURIComponent(event.eventType === 'campaign' && event.endDate ? event.endDate : event.date)}&details=${encodeURIComponent(event.description)}&location=${encodeURIComponent(event.location)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="add-calendar-button"
+              >
+                Add to Calendar
+              </a>
+            )}
           </div>
         </div>
       </div>

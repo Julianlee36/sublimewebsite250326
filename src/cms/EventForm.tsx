@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Event } from './DataContext';
+import { useData } from './DataContext';
 import { uploadImageFile } from '../firebase/imageUtils';
 import ImageWithFallback from '../components/ImageWithFallback';
 
@@ -18,6 +19,7 @@ interface EventFormProps {
 const EventForm: React.FC<EventFormProps> = ({ event, onInputChange, onImageUpload }) => {
   const [uploading, setUploading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const { teams } = useData();
 
   /**
    * Handles file input change for event images
@@ -72,7 +74,20 @@ const EventForm: React.FC<EventFormProps> = ({ event, onInputChange, onImageUplo
       </div>
       
       <div className="form-group">
-        <label>Date:</label>
+        <label>Event Type:</label>
+        <select 
+          name="eventType" 
+          value={event.eventType || 'event'} 
+          onChange={onInputChange}
+          required
+        >
+          <option value="event">Event (1-2 days)</option>
+          <option value="campaign">Campaign (Multi-month)</option>
+        </select>
+      </div>
+
+      <div className="form-group">
+        <label>{event.eventType === 'campaign' ? 'Start Date:' : 'Date:'}</label>
         <input 
           type="date" 
           name="date" 
@@ -82,6 +97,39 @@ const EventForm: React.FC<EventFormProps> = ({ event, onInputChange, onImageUplo
         />
       </div>
       
+      {event.eventType === 'campaign' && (
+        <>
+          <div className="form-group">
+            <label>End Date:</label>
+            <input 
+              type="date" 
+              name="endDate" 
+              value={event.endDate || ''} 
+              onChange={onInputChange} 
+              required
+            />
+          </div>
+          <div className="form-group">
+            <label>Team Participating:</label>
+            <select
+              name="teamName"
+              value={event.teamName || ''}
+              onChange={onInputChange}
+            >
+              <option value="">Select a team (optional)</option>
+              {teams.map(team => (
+                <option key={team.id} value={team.name}>
+                  {team.name}
+                </option>
+              ))}
+            </select>
+            <small className="input-help">
+              Select the team that will be participating in this campaign. This helps with roster assignments.
+            </small>
+          </div>
+        </>
+      )}
+      
       <div className="form-group">
         <label>Location:</label>
         <input 
@@ -89,7 +137,7 @@ const EventForm: React.FC<EventFormProps> = ({ event, onInputChange, onImageUplo
           name="location" 
           value={event.location} 
           onChange={onInputChange} 
-          placeholder="Event venue or field name"
+          placeholder={event.eventType === 'campaign' ? "Multiple locations or city, state" : "Event venue or field name"}
           required
         />
       </div>
@@ -107,16 +155,16 @@ const EventForm: React.FC<EventFormProps> = ({ event, onInputChange, onImageUplo
       </div>
       
       <div className="form-group">
-        <label>Event Type:</label>
+        <label>Event Status:</label>
         <select 
           name="type" 
           value={event.type} 
           onChange={onInputChange}
           required
         >
-          <option value="upcoming">Upcoming Event</option>
-          <option value="current">Current Event</option>
-          <option value="past">Past Event</option>
+          <option value="upcoming">Upcoming</option>
+          <option value="current">Ongoing</option>
+          <option value="past">Completed</option>
         </select>
       </div>
 

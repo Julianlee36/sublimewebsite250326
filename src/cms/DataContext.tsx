@@ -30,9 +30,14 @@ export interface Event {
   location: string;
   description: string;
   type: 'upcoming' | 'current' | 'past';
+  eventType: 'event' | 'campaign'; // New field to differentiate between events and campaigns
   result?: string;
   livestreamLink?: string;
   image?: string;
+  endDate?: string; // For campaign date ranges
+  roster?: Player[]; // For campaign rosters
+  gallery?: string[]; // For completed event/campaign images
+  teamName?: string; // The name of the team participating in the campaign
 }
 
 export interface NewsItem {
@@ -51,6 +56,8 @@ export interface Team {
   color: string;
 }
 
+// Campaigns are now integrated into the Event interface
+// This interface is kept for backward compatibility
 export interface Campaign {
   id: number;
   title: string;
@@ -135,7 +142,8 @@ const initialEvents: Event[] = [
     date: '2025-04-15',
     location: 'Central Park Fields',
     description: 'Season opener tournament with 8 regional teams competing.',
-    type: 'upcoming'
+    type: 'upcoming',
+    eventType: 'event'
   },
   {
     id: 2,
@@ -144,6 +152,7 @@ const initialEvents: Event[] = [
     location: 'City Sports Complex',
     description: 'Ongoing championship tournament with teams from across the region.',
     type: 'current',
+    eventType: 'event',
     result: 'In Group Stage - Won 2, Lost 1',
     livestreamLink: 'https://livestream.example.com/regional-championship'
   },
@@ -154,7 +163,29 @@ const initialEvents: Event[] = [
     location: 'Indoor Sports Complex',
     description: 'Annual indoor tournament with top regional competition.',
     type: 'past',
+    eventType: 'event',
     result: '3rd Place'
+  },
+  {
+    id: 4,
+    title: 'National Championship Campaign',
+    date: '2025-05-01',
+    endDate: '2025-07-31',
+    location: 'Multiple Locations, Australia',
+    description: 'Three-month training and competition campaign leading to the National Championships.',
+    type: 'upcoming',
+    eventType: 'campaign'
+  },
+  {
+    id: 5,
+    title: 'Winter Training Campaign',
+    date: '2024-11-01',
+    endDate: '2025-02-28',
+    location: 'Brisbane, QLD',
+    description: 'Intensive winter training program with regional competitions.',
+    type: 'current',
+    eventType: 'campaign',
+    result: 'Month 2 of 4 - Completed first regional tournament'
   }
 ];
 

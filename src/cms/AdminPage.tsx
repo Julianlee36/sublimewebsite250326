@@ -1,27 +1,24 @@
 import React, { useState } from 'react';
-import { useData, Event, SiteSettings, Team, Coach } from './DataContext';
+import { useData, SiteSettings, Team, Coach } from './DataContext';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { uploadImageDataUrl, uploadImageFile, uploadPlayerImageAndSave } from '../firebase/imageUtils';
-import EventForm from './EventForm';
 import SiteSettingsForm from './SiteSettingsForm';
-import ImageWithFallback from '../components/ImageWithFallback';
+import ScheduleManager from './ScheduleManager';
 import './admin.css';
 
 const AdminPage: React.FC = () => {
   const { 
     players, setPlayers, 
     alumni, setAlumni, 
-    events, setEvents, 
     news, setNews,
-    campaigns, setCampaigns,
     teams, setTeams,
     pageContent, setPageContent,
     siteSettings, setSiteSettings,
     saveData
   } = useData();
 
-  const [activeTab, setActiveTab] = useState<'alumni' | 'events' | 'news' | 'campaigns' | 'teams' | 'pages' | 'settings' | 'players'>('teams');
+  const [activeTab, setActiveTab] = useState<'alumni' | 'news' | 'teams' | 'pages' | 'settings' | 'players' | 'eventsManager' | 'scheduleManager'>('scheduleManager');
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
   const [editMode, setEditMode] = useState<boolean>(false);
   const [editItem, setEditItem] = useState<any>(null);
@@ -418,19 +415,6 @@ const AdminPage: React.FC = () => {
           current: ''
         });
         break;
-      case 'events':
-        setEditItem({
-          id: events.length > 0 ? Math.max(...events.map(e => e.id)) + 1 : 1,
-          title: '',
-          date: new Date().toISOString().split('T')[0], // Today's date
-          location: '',
-          description: '',
-          type: 'upcoming',
-          result: '',
-          livestreamLink: '',
-          image: ''
-        });
-        break;
       case 'news':
         setEditItem({
           id: news.length > 0 ? Math.max(...news.map(n => n.id)) + 1 : 1,
@@ -438,17 +422,6 @@ const AdminPage: React.FC = () => {
           date: new Date().toISOString().split('T')[0],
           content: '',
           author: '',
-          image: ''
-        });
-        break;
-      case 'campaigns':
-        setEditItem({
-          id: campaigns.length > 0 ? Math.max(...campaigns.map(c => c.id)) + 1 : 1,
-          title: '',
-          description: '',
-          goalAmount: 1000,
-          currentAmount: 0,
-          endDate: new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0], // 30 days from now
           image: ''
         });
         break;
@@ -573,7 +546,6 @@ const AdminPage: React.FC = () => {
         localStorage.setItem('players', JSON.stringify(playersToSave));
         console.log("Players saved to Firestore and localStorage");
       } else {
-        let needsDirectFirestoreUpdate = false;
         
         // Handle other data types
         switch (activeTab) {
@@ -584,28 +556,12 @@ const AdminPage: React.FC = () => {
               setAlumni([...alumni, editItem]);
             }
             break;
-          case 'events':
-            if (events.find(e => e.id === editItem.id)) {
-              setEvents(events.map(e => e.id === editItem.id ? editItem : e));
-            } else {
-              setEvents([...events, editItem]);
-            }
-            needsDirectFirestoreUpdate = true;
-            break;
           case 'news':
             if (news.find(n => n.id === editItem.id)) {
               setNews(news.map(n => n.id === editItem.id ? editItem : n));
             } else {
               setNews([...news, editItem]);
             }
-            break;
-          case 'campaigns':
-            if (campaigns.find(c => c.id === editItem.id)) {
-              setCampaigns(campaigns.map(c => c.id === editItem.id ? editItem : c));
-            } else {
-              setCampaigns([...campaigns, editItem]);
-            }
-            needsDirectFirestoreUpdate = true;
             break;
           case 'teams':
             if (teams.find(t => t.id === editItem.id)) {
@@ -631,35 +587,6 @@ const AdminPage: React.FC = () => {
         console.log("Calling saveData for other data types...");
         await saveData();
         
-        // For events and campaigns, also update Firestore directly to ensure immediate consistency
-        if (needsDirectFirestoreUpdate) {
-          if (activeTab === 'events') {
-            const updatedEvents = events.find(e => e.id === editItem.id)
-              ? events.map(e => e.id === editItem.id ? editItem : e)
-              : [...events, editItem];
-              
-            // Update Firestore directly
-            await setDoc(doc(db, 'website', 'events'), { data: updatedEvents });
-            
-            // Update localStorage as well
-            localStorage.setItem('events', JSON.stringify(updatedEvents));
-            
-            console.log("Events updated directly in Firestore and localStorage for immediate consistency");
-          } else if (activeTab === 'campaigns') {
-            const updatedCampaigns = campaigns.find(c => c.id === editItem.id)
-              ? campaigns.map(c => c.id === editItem.id ? editItem : c)
-              : [...campaigns, editItem];
-              
-            // Update Firestore directly
-            await setDoc(doc(db, 'website', 'campaigns'), { data: updatedCampaigns });
-            
-            // Update localStorage as well
-            localStorage.setItem('campaigns', JSON.stringify(updatedCampaigns));
-            
-            console.log("Campaigns updated directly in Firestore and localStorage for immediate consistency");
-          }
-        }
-        
         console.log("Save completed via saveData");
       }
       
@@ -683,14 +610,8 @@ const AdminPage: React.FC = () => {
       case 'alumni':
         setAlumni(alumni.filter(a => a.id !== id));
         break;
-      case 'events':
-        setEvents(events.filter(e => e.id !== id));
-        break;
       case 'news':
         setNews(news.filter(n => n.id !== id));
-        break;
-      case 'campaigns':
-        setCampaigns(campaigns.filter(c => c.id !== id));
         break;
       case 'teams':
         // Check if any players are assigned to this team
@@ -800,115 +721,6 @@ const AdminPage: React.FC = () => {
       );
     }
 
-    // Campaign editing form is available directly on the Campaign tab
-    if (activeTab === 'campaigns' && editItem) {
-      return (
-        <div className="edit-form">
-          <div className="form-group">
-            <label>Title:</label>
-            <input 
-              type="text" 
-              name="title" 
-              value={editItem.title} 
-              onChange={handleInputChange}
-              placeholder="Enter campaign title"
-              required
-            />
-          </div>
-          <div className="form-group">
-            <label>Description:</label>
-            <textarea 
-              name="description" 
-              value={editItem.description} 
-              onChange={handleInputChange}
-              rows={4}
-              placeholder="Describe what this campaign is for and why people should support it"
-              required
-            />
-          </div>
-          <div className="form-group">
-            <label>Goal Amount:</label>
-            <div className="input-with-prefix">
-              <span className="input-prefix">$</span>
-              <input 
-                type="number" 
-                name="goalAmount" 
-                value={editItem.goalAmount || ''} 
-                onChange={handleInputChange}
-                min="0"
-                step="100"
-                placeholder="1000"
-              />
-            </div>
-          </div>
-          <div className="form-group">
-            <label>Current Amount:</label>
-            <div className="input-with-prefix">
-              <span className="input-prefix">$</span>
-              <input 
-                type="number" 
-                name="currentAmount" 
-                value={editItem.currentAmount || ''} 
-                onChange={handleInputChange}
-                min="0"
-                step="50"
-                placeholder="0"
-              />
-            </div>
-          </div>
-          <div className="form-group">
-            <label>End Date:</label>
-            <input 
-              type="date" 
-              name="endDate" 
-              value={editItem.endDate || ''} 
-              onChange={handleInputChange}
-            />
-          </div>
-          <div className="form-group">
-            <label>Campaign Image:</label>
-            <input 
-              type="file" 
-              name="campaignImage" 
-              onChange={(e) => {
-                if (e.target.files && e.target.files[0]) {
-                  // Use the same image handling as events
-                  const handleImage = async () => {
-                    if (e.target.files && e.target.files[0]) {
-                      try {
-                        const file = e.target.files[0];
-                        
-                        // Create a unique path for the image using campaign ID and timestamp
-                        const imagePath = `campaigns/campaign_${editItem.id}_${Date.now()}`;
-                        
-                        // Upload the image to Firebase Storage
-                        const imageUrl = await uploadImageFile(file, imagePath);
-                        setEditItem({...editItem, image: imageUrl});
-                      } catch (error) {
-                        console.error("Error uploading campaign image:", error);
-                      }
-                    }
-                  };
-                  handleImage();
-                }
-              }}
-              accept="image/*"
-            />
-            {editItem.image && (
-              <div className="image-preview">
-                <p>Current image:</p>
-                <ImageWithFallback 
-                  src={editItem.image} 
-                  alt="Campaign preview" 
-                  fallbackSrc="/placeholder-event.jpg"
-                  style={{ maxWidth: '200px', maxHeight: '200px', objectFit: 'cover' }} 
-                />
-              </div>
-            )}
-          </div>
-        </div>
-      );
-    }
 
     switch (activeTab) {
       case 'alumni':
@@ -931,16 +743,6 @@ const AdminPage: React.FC = () => {
               <input type="text" name="current" value={editItem.current} onChange={handleInputChange} />
             </div>
           </div>
-        );
-      case 'events':
-        return (
-          <EventForm 
-            event={editItem as Event}
-            onInputChange={handleInputChange}
-            onImageUpload={(imageUrl) => setEditItem({...editItem, image: imageUrl})}
-            onSave={handleSaveItem}
-            onCancel={handleCancelEdit}
-          />
         );
       case 'news':
         return (
@@ -1058,36 +860,6 @@ const AdminPage: React.FC = () => {
             </div>
           </div>
         ));
-      case 'events':
-        return events.map((event) => (
-          <div key={event.id} className="data-item">
-            <div className={`event-badge ${event.type === 'past' ? 'past-event' : ''}`}>
-              {event.type === 'upcoming' ? 'Upcoming' : 'Past'}
-            </div>
-            <div className="event-header">
-              {event.image && (
-                <div 
-                  className="event-image" 
-                  style={{ backgroundImage: `url(${event.image})`, width: '100px', height: '100px', backgroundSize: 'cover', marginRight: '10px' }}
-                ></div>
-              )}
-              <div className="event-details">
-                <h3>{event.title}</h3>
-                <p><strong>Date:</strong> {new Date(event.date).toLocaleDateString()}</p>
-                <p><strong>Location:</strong> {event.location}</p>
-              </div>
-            </div>
-            <p className="item-description">{event.description}</p>
-            {event.result && <p><strong>Result:</strong> {event.result}</p>}
-            {event.livestreamLink && (
-              <p><strong>Livestream:</strong> <a href={event.livestreamLink} target="_blank" rel="noopener noreferrer">View</a></p>
-            )}
-            <div className="item-actions">
-              <button onClick={() => handleEditClick(event)}>Edit</button>
-              <button onClick={() => handleDeleteItem(event.id)} className="delete-btn">Delete</button>
-            </div>
-          </div>
-        ));
       case 'news':
         return news.map((item) => (
           <div key={item.id} className="data-item">
@@ -1097,48 +869,6 @@ const AdminPage: React.FC = () => {
             <div className="item-actions">
               <button onClick={() => handleEditClick(item)}>Edit</button>
               <button onClick={() => handleDeleteItem(item.id)} className="delete-btn">Delete</button>
-            </div>
-          </div>
-        ));
-      case 'campaigns':
-        return campaigns.map((campaign) => (
-          <div key={campaign.id} className="data-item">
-            <div className="campaign-header">
-              {campaign.image && (
-                <div 
-                  className="campaign-image" 
-                  style={{ backgroundImage: `url(${campaign.image})`, width: '100px', height: '100px', backgroundSize: 'cover', marginRight: '10px' }}
-                ></div>
-              )}
-              <div className="campaign-details">
-                <h3>{campaign.title}</h3>
-                {campaign.endDate && (
-                  <p>
-                    <strong>End Date:</strong> {new Date(campaign.endDate).toLocaleDateString()}
-                  </p>
-                )}
-                {(campaign.goalAmount !== undefined && campaign.currentAmount !== undefined) && (
-                  <div className="campaign-progress">
-                    <div className="progress-bar-container">
-                      <div 
-                        className="progress-bar" 
-                        style={{ 
-                          width: `${Math.min(100, (campaign.currentAmount / campaign.goalAmount) * 100)}%`,
-                          backgroundColor: '#4CAF50'
-                        }}
-                      ></div>
-                    </div>
-                    <p className="progress-text">
-                      ${campaign.currentAmount} of ${campaign.goalAmount} ({Math.round((campaign.currentAmount / campaign.goalAmount) * 100)}%)
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-            <p className="item-description">{campaign.description}</p>
-            <div className="item-actions">
-              <button onClick={() => handleEditClick(campaign)}>Edit</button>
-              <button onClick={() => handleDeleteItem(campaign.id)} className="delete-btn">Delete</button>
             </div>
           </div>
         ));
@@ -1387,22 +1117,16 @@ const AdminPage: React.FC = () => {
       <h1>Admin Dashboard</h1>
       <div className="admin-tabs">
         <button 
+          className={activeTab === 'scheduleManager' ? 'active' : ''}
+          onClick={() => setActiveTab('scheduleManager')}
+        >
+          Schedule Manager
+        </button>
+        <button 
           className={activeTab === 'alumni' ? 'active' : ''}
           onClick={() => setActiveTab('alumni')}
         >
           Alumni
-        </button>
-        <button 
-          className={activeTab === 'events' ? 'active' : ''}
-          onClick={() => setActiveTab('events')}
-        >
-          Events
-        </button>
-        <button 
-          className={activeTab === 'campaigns' ? 'active' : ''}
-          onClick={() => setActiveTab('campaigns')}
-        >
-          Campaigns
         </button>
         <button 
           className={activeTab === 'news' ? 'active' : ''}
@@ -1431,7 +1155,9 @@ const AdminPage: React.FC = () => {
       </div>
 
       <div className="admin-content">
-        {editMode && activeTab === 'pages' && editItem && typeof editItem === 'object' && 'role' in (editItem ?? {}) ? (
+        {activeTab === 'scheduleManager' ? (
+          <ScheduleManager />
+        ) : editMode && activeTab === 'pages' && editItem && typeof editItem === 'object' && 'role' in (editItem ?? {}) ? (
           // Special case for coach editing (use dedicated coach form)
           <div className="edit-container">
             <h2>{editItem && 'id' in editItem ? 'Edit' : 'Add New'} Coach</h2>
