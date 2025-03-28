@@ -51,6 +51,16 @@ export interface Team {
   color: string;
 }
 
+export interface Campaign {
+  id: number;
+  title: string;
+  description: string;
+  goalAmount?: number;
+  currentAmount?: number;
+  endDate?: string;
+  image?: string;
+}
+
 export interface Coach {
   id: number;
   name: string;
@@ -82,6 +92,8 @@ interface DataContextType {
   setEvents: React.Dispatch<React.SetStateAction<Event[]>>;
   news: NewsItem[];
   setNews: React.Dispatch<React.SetStateAction<NewsItem[]>>;
+  campaigns: Campaign[];
+  setCampaigns: React.Dispatch<React.SetStateAction<Campaign[]>>;
   teams: Team[];
   setTeams: React.Dispatch<React.SetStateAction<Team[]>>;
   pageContent: PageContent;
@@ -184,6 +196,25 @@ const initialTeams: Team[] = [
   }
 ];
 
+const initialCampaigns: Campaign[] = [
+  {
+    id: 1,
+    title: 'Tournament Travel Fund',
+    description: 'Help our team travel to the national tournament this summer! Your contributions will help cover travel expenses, accommodation, and tournament fees.',
+    goalAmount: 5000,
+    currentAmount: 2750,
+    endDate: '2025-06-01'
+  },
+  {
+    id: 2,
+    title: 'New Team Uniforms',
+    description: 'We need new uniforms for the upcoming season. Support our team by contributing to our uniform fund!',
+    goalAmount: 2000,
+    currentAmount: 800,
+    endDate: '2025-05-15'
+  }
+];
+
 const initialPageContent: PageContent = {
   aboutImage: '', // Empty by default
   coaches: [
@@ -250,6 +281,11 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     return savedTeams ? JSON.parse(savedTeams) : initialTeams;
   });
   
+  const [campaigns, setCampaigns] = useState<Campaign[]>(() => {
+    const savedCampaigns = localStorage.getItem('campaigns');
+    return savedCampaigns ? JSON.parse(savedCampaigns) : initialCampaigns;
+  });
+  
   const [pageContent, setPageContent] = useState<PageContent>(() => {
     const savedPageContent = localStorage.getItem('pageContent');
     return savedPageContent ? JSON.parse(savedPageContent) : initialPageContent;
@@ -304,6 +340,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       await setDoc(doc(db, 'website', 'alumni'), { data: sanitizeData(alumni) });
       await setDoc(doc(db, 'website', 'events'), { data: events }); // Events don't have image data
       await setDoc(doc(db, 'website', 'news'), { data: sanitizeData(news) });
+      await setDoc(doc(db, 'website', 'campaigns'), { data: sanitizeData(campaigns) });
       await setDoc(doc(db, 'website', 'teams'), { data: teams }); // Teams don't have complex data
       
       // IMPORTANT: For pageContent, we need to ensure we're not wiping out coaches
@@ -336,6 +373,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       localStorage.setItem('alumni', JSON.stringify(alumni));
       localStorage.setItem('events', JSON.stringify(events));
       localStorage.setItem('news', JSON.stringify(news));
+      localStorage.setItem('campaigns', JSON.stringify(campaigns));
       localStorage.setItem('teams', JSON.stringify(teams));
       localStorage.setItem('pageContent', JSON.stringify(pageContent));
       localStorage.setItem('siteSettings', JSON.stringify(siteSettings));
@@ -363,6 +401,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       const alumniDoc = await getDoc(doc(db, 'website', 'alumni'));
       const eventsDoc = await getDoc(doc(db, 'website', 'events'));
       const newsDoc = await getDoc(doc(db, 'website', 'news'));
+      const campaignsDoc = await getDoc(doc(db, 'website', 'campaigns'));
       const teamsDoc = await getDoc(doc(db, 'website', 'teams'));
       const pageContentDoc = await getDoc(doc(db, 'website', 'pageContent'));
       const siteSettingsDoc = await getDoc(doc(db, 'website', 'siteSettings'));
@@ -372,6 +411,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       if (alumniDoc.exists()) setAlumni(alumniDoc.data()?.data || []);
       if (eventsDoc.exists()) setEvents(eventsDoc.data()?.data || []);
       if (newsDoc.exists()) setNews(newsDoc.data()?.data || []);
+      if (campaignsDoc.exists()) setCampaigns(campaignsDoc.data()?.data || []);
       if (teamsDoc.exists()) setTeams(teamsDoc.data()?.data || []);
       if (pageContentDoc.exists()) {
         const pageData = pageContentDoc.data()?.data;
@@ -395,6 +435,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       const savedAlumni = localStorage.getItem('alumni');
       const savedEvents = localStorage.getItem('events');
       const savedNews = localStorage.getItem('news');
+      const savedCampaigns = localStorage.getItem('campaigns');
       const savedTeams = localStorage.getItem('teams');
       const savedPageContent = localStorage.getItem('pageContent');
       const savedSettings = localStorage.getItem('siteSettings');
@@ -403,6 +444,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       if (savedAlumni) setAlumni(JSON.parse(savedAlumni));
       if (savedEvents) setEvents(JSON.parse(savedEvents));
       if (savedNews) setNews(JSON.parse(savedNews));
+      if (savedCampaigns) setCampaigns(JSON.parse(savedCampaigns));
       if (savedTeams) setTeams(JSON.parse(savedTeams));
       if (savedPageContent) setPageContent(JSON.parse(savedPageContent));
       if (savedSettings) setSiteSettings(JSON.parse(savedSettings));
@@ -470,6 +512,11 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
           setNews(newsDoc.data().data);
         }
         
+        const campaignsDoc = await getDoc(doc(db, 'website', 'campaigns'));
+        if (campaignsDoc.exists() && campaignsDoc.data()?.data) {
+          setCampaigns(campaignsDoc.data().data);
+        }
+        
         const teamsDoc = await getDoc(doc(db, 'website', 'teams'));
         if (teamsDoc.exists() && teamsDoc.data()?.data) {
           setTeams(teamsDoc.data().data);
@@ -519,12 +566,13 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       const alumniLoaded = loadData('alumni', setAlumni);
       const eventsLoaded = loadData('events', setEvents);
       const newsLoaded = loadData('news', setNews);
+      const campaignsLoaded = loadData('campaigns', setCampaigns);
       const pageContentLoaded = loadData('pageContent', setPageContent);
       const settingsLoaded = loadData('siteSettings', setSiteSettings);
       
       console.log('Data loaded from localStorage:', { 
         playersLoaded, teamsLoaded, alumniLoaded, eventsLoaded, 
-        newsLoaded, pageContentLoaded, settingsLoaded 
+        newsLoaded, campaignsLoaded, pageContentLoaded, settingsLoaded 
       });
     } catch (error) {
       console.error("Error loading from localStorage:", error);
@@ -564,6 +612,8 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     setEvents,
     news,
     setNews,
+    campaigns,
+    setCampaigns,
     teams,
     setTeams,
     pageContent,

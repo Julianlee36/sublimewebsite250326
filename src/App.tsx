@@ -14,7 +14,7 @@ import LoadingSpinner from './components/LoadingSpinner';
 const Home = lazy(() => import('./pages/Home'));
 const About = lazy(() => import('./pages/About'));
 const Roster = lazy(() => import('./pages/Roster'));
-const Schedule = lazy(() => import('./pages/Schedule'));
+const Campaigns = lazy(() => import('./pages/Schedule'));
 const News = lazy(() => import('./pages/News'));
 const Media = lazy(() => import('./pages/Media'));
 const Playbook = lazy(() => import('./pages/Playbook'));
@@ -50,9 +50,9 @@ function App() {
                 <Roster />
               </Suspense>
             } />
-            <Route path="schedule" element={
+            <Route path="campaigns" element={
               <Suspense fallback={<LoadingSpinner />}>
-                <Schedule />
+                <Campaigns />
               </Suspense>
             } />
             <Route path="news" element={

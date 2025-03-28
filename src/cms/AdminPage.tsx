@@ -5,6 +5,7 @@ import { db } from '../firebase/config';
 import { uploadImageDataUrl, uploadImageFile, uploadPlayerImageAndSave } from '../firebase/imageUtils';
 import EventForm from './EventForm';
 import SiteSettingsForm from './SiteSettingsForm';
+import ImageWithFallback from '../components/ImageWithFallback';
 import './admin.css';
 
 const AdminPage: React.FC = () => {
@@ -13,13 +14,14 @@ const AdminPage: React.FC = () => {
     alumni, setAlumni, 
     events, setEvents, 
     news, setNews,
+    campaigns, setCampaigns,
     teams, setTeams,
     pageContent, setPageContent,
     siteSettings, setSiteSettings,
     saveData
   } = useData();
 
-  const [activeTab, setActiveTab] = useState<'alumni' | 'events' | 'news' | 'teams' | 'pages' | 'settings' | 'players'>('teams');
+  const [activeTab, setActiveTab] = useState<'alumni' | 'events' | 'news' | 'campaigns' | 'teams' | 'pages' | 'settings' | 'players'>('teams');
   const [selectedTeam, setSelectedTeam] = useState<Team | null>(null);
   const [editMode, setEditMode] = useState<boolean>(false);
   const [editItem, setEditItem] = useState<any>(null);
@@ -439,6 +441,17 @@ const AdminPage: React.FC = () => {
           image: ''
         });
         break;
+      case 'campaigns':
+        setEditItem({
+          id: campaigns.length > 0 ? Math.max(...campaigns.map(c => c.id)) + 1 : 1,
+          title: '',
+          description: '',
+          goalAmount: 1000,
+          currentAmount: 0,
+          endDate: new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0], // 30 days from now
+          image: ''
+        });
+        break;
       case 'teams':
         setEditItem({
           id: teams.length > 0 ? Math.max(...teams.map(t => t.id)) + 1 : 1,
@@ -586,6 +599,14 @@ const AdminPage: React.FC = () => {
               setNews([...news, editItem]);
             }
             break;
+          case 'campaigns':
+            if (campaigns.find(c => c.id === editItem.id)) {
+              setCampaigns(campaigns.map(c => c.id === editItem.id ? editItem : c));
+            } else {
+              setCampaigns([...campaigns, editItem]);
+            }
+            needsDirectFirestoreUpdate = true;
+            break;
           case 'teams':
             if (teams.find(t => t.id === editItem.id)) {
               setTeams(teams.map(t => t.id === editItem.id ? editItem : t));
@@ -610,19 +631,33 @@ const AdminPage: React.FC = () => {
         console.log("Calling saveData for other data types...");
         await saveData();
         
-        // For events, also update Firestore directly to ensure immediate consistency
-        if (needsDirectFirestoreUpdate && activeTab === 'events') {
-          const updatedEvents = events.find(e => e.id === editItem.id)
-            ? events.map(e => e.id === editItem.id ? editItem : e)
-            : [...events, editItem];
+        // For events and campaigns, also update Firestore directly to ensure immediate consistency
+        if (needsDirectFirestoreUpdate) {
+          if (activeTab === 'events') {
+            const updatedEvents = events.find(e => e.id === editItem.id)
+              ? events.map(e => e.id === editItem.id ? editItem : e)
+              : [...events, editItem];
+              
+            // Update Firestore directly
+            await setDoc(doc(db, 'website', 'events'), { data: updatedEvents });
             
-          // Update Firestore directly
-          await setDoc(doc(db, 'website', 'events'), { data: updatedEvents });
-          
-          // Update localStorage as well
-          localStorage.setItem('events', JSON.stringify(updatedEvents));
-          
-          console.log("Events updated directly in Firestore and localStorage for immediate consistency");
+            // Update localStorage as well
+            localStorage.setItem('events', JSON.stringify(updatedEvents));
+            
+            console.log("Events updated directly in Firestore and localStorage for immediate consistency");
+          } else if (activeTab === 'campaigns') {
+            const updatedCampaigns = campaigns.find(c => c.id === editItem.id)
+              ? campaigns.map(c => c.id === editItem.id ? editItem : c)
+              : [...campaigns, editItem];
+              
+            // Update Firestore directly
+            await setDoc(doc(db, 'website', 'campaigns'), { data: updatedCampaigns });
+            
+            // Update localStorage as well
+            localStorage.setItem('campaigns', JSON.stringify(updatedCampaigns));
+            
+            console.log("Campaigns updated directly in Firestore and localStorage for immediate consistency");
+          }
         }
         
         console.log("Save completed via saveData");
@@ -653,6 +688,9 @@ const AdminPage: React.FC = () => {
         break;
       case 'news':
         setNews(news.filter(n => n.id !== id));
+        break;
+      case 'campaigns':
+        setCampaigns(campaigns.filter(c => c.id !== id));
         break;
       case 'teams':
         // Check if any players are assigned to this team
@@ -755,6 +793,116 @@ const AdminPage: React.FC = () => {
                     style={{ backgroundImage: `url(${editItem.image})` }}
                   ></div>
                 </div>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // Campaign editing form is available directly on the Campaign tab
+    if (activeTab === 'campaigns' && editItem) {
+      return (
+        <div className="edit-form">
+          <div className="form-group">
+            <label>Title:</label>
+            <input 
+              type="text" 
+              name="title" 
+              value={editItem.title} 
+              onChange={handleInputChange}
+              placeholder="Enter campaign title"
+              required
+            />
+          </div>
+          <div className="form-group">
+            <label>Description:</label>
+            <textarea 
+              name="description" 
+              value={editItem.description} 
+              onChange={handleInputChange}
+              rows={4}
+              placeholder="Describe what this campaign is for and why people should support it"
+              required
+            />
+          </div>
+          <div className="form-group">
+            <label>Goal Amount:</label>
+            <div className="input-with-prefix">
+              <span className="input-prefix">$</span>
+              <input 
+                type="number" 
+                name="goalAmount" 
+                value={editItem.goalAmount || ''} 
+                onChange={handleInputChange}
+                min="0"
+                step="100"
+                placeholder="1000"
+              />
+            </div>
+          </div>
+          <div className="form-group">
+            <label>Current Amount:</label>
+            <div className="input-with-prefix">
+              <span className="input-prefix">$</span>
+              <input 
+                type="number" 
+                name="currentAmount" 
+                value={editItem.currentAmount || ''} 
+                onChange={handleInputChange}
+                min="0"
+                step="50"
+                placeholder="0"
+              />
+            </div>
+          </div>
+          <div className="form-group">
+            <label>End Date:</label>
+            <input 
+              type="date" 
+              name="endDate" 
+              value={editItem.endDate || ''} 
+              onChange={handleInputChange}
+            />
+          </div>
+          <div className="form-group">
+            <label>Campaign Image:</label>
+            <input 
+              type="file" 
+              name="campaignImage" 
+              onChange={(e) => {
+                if (e.target.files && e.target.files[0]) {
+                  // Use the same image handling as events
+                  const handleImage = async () => {
+                    if (e.target.files && e.target.files[0]) {
+                      try {
+                        const file = e.target.files[0];
+                        
+                        // Create a unique path for the image using campaign ID and timestamp
+                        const imagePath = `campaigns/campaign_${editItem.id}_${Date.now()}`;
+                        
+                        // Upload the image to Firebase Storage
+                        const imageUrl = await uploadImageFile(file, imagePath);
+                        setEditItem({...editItem, image: imageUrl});
+                      } catch (error) {
+                        console.error("Error uploading campaign image:", error);
+                      }
+                    }
+                  };
+                  handleImage();
+                }
+              }}
+              accept="image/*"
+            />
+            {editItem.image && (
+              <div className="image-preview">
+                <p>Current image:</p>
+                <ImageWithFallback 
+                  src={editItem.image} 
+                  alt="Campaign preview" 
+                  fallbackSrc="/placeholder-event.jpg"
+                  style={{ maxWidth: '200px', maxHeight: '200px', objectFit: 'cover' }} 
+                />
               </div>
             )}
           </div>
@@ -949,6 +1097,48 @@ const AdminPage: React.FC = () => {
             <div className="item-actions">
               <button onClick={() => handleEditClick(item)}>Edit</button>
               <button onClick={() => handleDeleteItem(item.id)} className="delete-btn">Delete</button>
+            </div>
+          </div>
+        ));
+      case 'campaigns':
+        return campaigns.map((campaign) => (
+          <div key={campaign.id} className="data-item">
+            <div className="campaign-header">
+              {campaign.image && (
+                <div 
+                  className="campaign-image" 
+                  style={{ backgroundImage: `url(${campaign.image})`, width: '100px', height: '100px', backgroundSize: 'cover', marginRight: '10px' }}
+                ></div>
+              )}
+              <div className="campaign-details">
+                <h3>{campaign.title}</h3>
+                {campaign.endDate && (
+                  <p>
+                    <strong>End Date:</strong> {new Date(campaign.endDate).toLocaleDateString()}
+                  </p>
+                )}
+                {(campaign.goalAmount !== undefined && campaign.currentAmount !== undefined) && (
+                  <div className="campaign-progress">
+                    <div className="progress-bar-container">
+                      <div 
+                        className="progress-bar" 
+                        style={{ 
+                          width: `${Math.min(100, (campaign.currentAmount / campaign.goalAmount) * 100)}%`,
+                          backgroundColor: '#4CAF50'
+                        }}
+                      ></div>
+                    </div>
+                    <p className="progress-text">
+                      ${campaign.currentAmount} of ${campaign.goalAmount} ({Math.round((campaign.currentAmount / campaign.goalAmount) * 100)}%)
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+            <p className="item-description">{campaign.description}</p>
+            <div className="item-actions">
+              <button onClick={() => handleEditClick(campaign)}>Edit</button>
+              <button onClick={() => handleDeleteItem(campaign.id)} className="delete-btn">Delete</button>
             </div>
           </div>
         ));
@@ -1207,6 +1397,12 @@ const AdminPage: React.FC = () => {
           onClick={() => setActiveTab('events')}
         >
           Events
+        </button>
+        <button 
+          className={activeTab === 'campaigns' ? 'active' : ''}
+          onClick={() => setActiveTab('campaigns')}
+        >
+          Campaigns
         </button>
         <button 
           className={activeTab === 'news' ? 'active' : ''}

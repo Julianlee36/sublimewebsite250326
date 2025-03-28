@@ -137,6 +137,18 @@
   margin-top: 1.5rem;
 }
 
+.events-grid.past .event-card.past {
+  background-color: var(--light-gray);
+  border-left: 4px solid var(--secondary-color);
+  opacity: 0.9;
+}
+
+.event-result {
+  font-weight: 500;
+  color: var(--primary-color);
+  margin-bottom: 0.5rem;
+}
+
 .no-events-message {
   background-color: var(--light-gray);
   border-radius: 8px;
@@ -238,6 +250,117 @@
   background-color: var(--primary-color);
   color: var(--white);
   transform: translateX(5px);
+}
+
+/* Campaigns */
+.campaigns-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 30px;
+  margin-top: 20px;
+}
+
+.campaign-card {
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  background-color: white;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.campaign-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+}
+
+.campaign-image, 
+.campaign-image-placeholder {
+  height: 180px;
+  background-size: cover;
+  background-position: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.campaign-image-placeholder {
+  background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+  color: white;
+  font-size: 1.5rem;
+  font-weight: bold;
+}
+
+.campaign-content {
+  padding: 20px;
+}
+
+.campaign-description {
+  margin: 10px 0 20px;
+  color: #666;
+  line-height: 1.5;
+}
+
+.campaign-progress {
+  margin: 15px 0;
+}
+
+.progress-bar-container {
+  height: 10px;
+  background-color: #eee;
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  border-radius: 5px;
+}
+
+.progress-text {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 5px;
+  font-size: 0.9rem;
+}
+
+.amount-text {
+  font-weight: bold;
+  color: var(--primary-color);
+}
+
+.goal-text {
+  color: #888;
+}
+
+.campaign-date {
+  font-size: 0.85rem;
+  color: #777;
+  margin-bottom: 15px;
+}
+
+.support-button {
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: 5px;
+  padding: 10px 15px;
+  width: 100%;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.support-button:hover {
+  background-color: var(--dark-gray);
+}
+
+.no-campaigns-message {
+  text-align: center;
+  padding: 40px;
+  background-color: var(--light-gray);
+  border-radius: 10px;
+  color: #666;
 }
 
 /* Team Highlights */
