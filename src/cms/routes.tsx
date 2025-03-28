@@ -1,6 +1,9 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import AdminPage from './AdminPage';
+import LoadingSpinner from '../components/LoadingSpinner';
+
+// Lazy load the admin page
+const AdminPage = lazy(() => import('./AdminPage'));
 
 // Simple authentication check - in a real application, you would use proper authentication
 const isAuthenticated = () => {
@@ -70,7 +73,9 @@ export const adminRoutes = [
     path: "/admin/*",
     element: (
       <ProtectedRoute>
-        <AdminPage />
+        <Suspense fallback={<LoadingSpinner />}>
+          <AdminPage />
+        </Suspense>
       </ProtectedRoute>
     )
   },

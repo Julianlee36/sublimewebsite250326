@@ -1,22 +1,26 @@
 import React from 'react';
 import { useData } from '../cms/DataContext';
 import ImageWithFallback from '../components/ImageWithFallback';
+import { Link } from 'react-router-dom';
 
 const Schedule: React.FC = () => {
   const { events } = useData();
   
-  // Separate upcoming, current, and past events
-  const upcomingEvents = events.filter(event => event.type === 'upcoming')
+  // Ensure events array exists
+  const safeEvents = events && Array.isArray(events) ? events : [];
+
+  // Separate upcoming, current, and past events with null checking
+  const upcomingEvents = safeEvents.filter(event => event && typeof event === 'object' && event.type === 'upcoming')
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   
-  const currentEvents = events.filter(event => event.type === 'current')
+  const currentEvents = safeEvents.filter(event => event && typeof event === 'object' && event.type === 'current')
     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   
-  const pastEvents = events.filter(event => event.type === 'past')
+  const pastEvents = safeEvents.filter(event => event && typeof event === 'object' && event.type === 'past')
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   
   // Get events with livestream links
-  const eventsWithLivestreams = events.filter(event => event.livestreamLink);
+  const eventsWithLivestreams = safeEvents.filter(event => event && typeof event === 'object' && event.livestreamLink);
   
   return (
     <div className="schedule-page">
@@ -27,35 +31,38 @@ const Schedule: React.FC = () => {
         {upcomingEvents.length > 0 ? (
           <div className="events-list">
             {upcomingEvents.map(event => (
-              <div key={event.id} className="event-card">
-                {event.image && (
-                  <div className="event-image">
-                    <ImageWithFallback
-                      src={event.image}
-                      alt={event.title}
-                      fallbackSrc="/placeholder-event.jpg"
-                      className="event-photo"
-                    />
-                  </div>
-                )}
-                <div className="event-content">
-                  <h3>{event.title}</h3>
-                  <p className="event-date">
-                    <strong>Date:</strong> {new Date(event.date).toLocaleDateString()}
-                  </p>
-                  <p className="event-location">
-                    <strong>Location:</strong> {event.location}
-                  </p>
-                  <p className="event-description">{event.description}</p>
-                  {event.livestreamLink && (
-                    <p className="event-livestream">
-                      <a href={event.livestreamLink} target="_blank" rel="noopener noreferrer">
-                        Livestream Link
-                      </a>
-                    </p>
+              <Link to={`/event/${event.id}`} key={event.id} className="event-card-link">
+                <div className="event-card">
+                  {event.image && (
+                    <div className="event-image">
+                      <ImageWithFallback
+                        src={event.image}
+                        alt={event.title}
+                        fallbackSrc="/placeholder-event.jpg"
+                        className="event-photo"
+                      />
+                    </div>
                   )}
+                  <div className="event-content">
+                    <h3>{event.title}</h3>
+                    <p className="event-date">
+                      <strong>Date:</strong> {new Date(event.date).toLocaleDateString()}
+                    </p>
+                    <p className="event-location">
+                      <strong>Location:</strong> {event.location}
+                    </p>
+                    <p className="event-description">{event.description}</p>
+                    {event.livestreamLink && (
+                      <p className="event-livestream">
+                        <span className="livestream-link-text">Livestream Available</span>
+                      </p>
+                    )}
+                    <div className="event-card-action">
+                      <span className="view-details">View Details →</span>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         ) : (
@@ -68,40 +75,43 @@ const Schedule: React.FC = () => {
         {currentEvents.length > 0 ? (
           <div className="events-list">
             {currentEvents.map(event => (
-              <div key={event.id} className="event-card">
-                {event.image && (
-                  <div className="event-image">
-                    <ImageWithFallback
-                      src={event.image}
-                      alt={event.title}
-                      fallbackSrc="/placeholder-event.jpg"
-                      className="event-photo"
-                    />
+              <Link to={`/event/${event.id}`} key={event.id} className="event-card-link">
+                <div className="event-card">
+                  {event.image && (
+                    <div className="event-image">
+                      <ImageWithFallback
+                        src={event.image}
+                        alt={event.title}
+                        fallbackSrc="/placeholder-event.jpg"
+                        className="event-photo"
+                      />
+                    </div>
+                  )}
+                  <div className="event-content">
+                    <h3>{event.title}</h3>
+                    <p className="event-date">
+                      <strong>Date:</strong> {new Date(event.date).toLocaleDateString()}
+                    </p>
+                    <p className="event-location">
+                      <strong>Location:</strong> {event.location}
+                    </p>
+                    <p className="event-description">{event.description}</p>
+                    {event.livestreamLink && (
+                      <p className="event-livestream">
+                        <span className="livestream-link-text">Livestream Available</span>
+                      </p>
+                    )}
+                    {event.result && (
+                      <p className="event-result">
+                        <strong>Current Standing:</strong> {event.result}
+                      </p>
+                    )}
+                    <div className="event-card-action">
+                      <span className="view-details">View Details →</span>
+                    </div>
                   </div>
-                )}
-                <div className="event-content">
-                  <h3>{event.title}</h3>
-                  <p className="event-date">
-                    <strong>Date:</strong> {new Date(event.date).toLocaleDateString()}
-                  </p>
-                  <p className="event-location">
-                    <strong>Location:</strong> {event.location}
-                  </p>
-                  <p className="event-description">{event.description}</p>
-                  {event.livestreamLink && (
-                    <p className="event-livestream">
-                      <a href={event.livestreamLink} target="_blank" rel="noopener noreferrer">
-                        Watch Live
-                      </a>
-                    </p>
-                  )}
-                  {event.result && (
-                    <p className="event-result">
-                      <strong>Current Standing:</strong> {event.result}
-                    </p>
-                  )}
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         ) : (
@@ -114,31 +124,36 @@ const Schedule: React.FC = () => {
         {pastEvents.length > 0 ? (
           <div className="events-list">
             {pastEvents.map(event => (
-              <div key={event.id} className="event-card">
-                {event.image && (
-                  <div className="event-image">
-                    <ImageWithFallback
-                      src={event.image}
-                      alt={event.title}
-                      fallbackSrc="/placeholder-event.jpg"
-                      className="event-photo"
-                    />
+              <Link to={`/event/${event.id}`} key={event.id} className="event-card-link">
+                <div className="event-card">
+                  {event.image && (
+                    <div className="event-image">
+                      <ImageWithFallback
+                        src={event.image}
+                        alt={event.title}
+                        fallbackSrc="/placeholder-event.jpg"
+                        className="event-photo"
+                      />
+                    </div>
+                  )}
+                  <div className="event-content">
+                    <h3>{event.title}</h3>
+                    <p className="event-date">
+                      <strong>Date:</strong> {new Date(event.date).toLocaleDateString()}
+                    </p>
+                    <p className="event-location">
+                      <strong>Location:</strong> {event.location}
+                    </p>
+                    <p className="event-result">
+                      <strong>Result:</strong> {event.result || 'Not available'}
+                    </p>
+                    <p className="event-description">{event.description}</p>
+                    <div className="event-card-action">
+                      <span className="view-details">View Details →</span>
+                    </div>
                   </div>
-                )}
-                <div className="event-content">
-                  <h3>{event.title}</h3>
-                  <p className="event-date">
-                    <strong>Date:</strong> {new Date(event.date).toLocaleDateString()}
-                  </p>
-                  <p className="event-location">
-                    <strong>Location:</strong> {event.location}
-                  </p>
-                  <p className="event-result">
-                    <strong>Result:</strong> {event.result || 'Not available'}
-                  </p>
-                  <p className="event-description">{event.description}</p>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         ) : (
@@ -151,25 +166,28 @@ const Schedule: React.FC = () => {
         {eventsWithLivestreams.length > 0 ? (
           <div className="events-list">
             {eventsWithLivestreams.map(event => (
-              <div key={event.id} className="event-card">
-                {event.image && (
-                  <div 
-                    className="event-image" 
-                    style={{ backgroundImage: `url(${event.image})` }}
-                  ></div>
-                )}
-                <div className="event-content">
-                  <h3>{event.title}</h3>
-                  <p className="event-date">
-                    <strong>Date:</strong> {new Date(event.date).toLocaleDateString()}
-                  </p>
-                  <p className="event-livestream">
-                    <a href={event.livestreamLink} target="_blank" rel="noopener noreferrer">
-                      Watch Livestream/Recording
-                    </a>
-                  </p>
+              <Link to={`/event/${event.id}`} key={event.id} className="event-card-link">
+                <div className="event-card">
+                  {event.image && (
+                    <div 
+                      className="event-image" 
+                      style={{ backgroundImage: `url(${event.image})` }}
+                    ></div>
+                  )}
+                  <div className="event-content">
+                    <h3>{event.title}</h3>
+                    <p className="event-date">
+                      <strong>Date:</strong> {new Date(event.date).toLocaleDateString()}
+                    </p>
+                    <p className="event-livestream">
+                      <span className="livestream-link-text">Livestream Available</span>
+                    </p>
+                    <div className="event-card-action">
+                      <span className="view-details">View Details →</span>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         ) : (

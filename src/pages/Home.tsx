@@ -1,52 +1,56 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import HeroBanner from '../components/HeroBanner';
 import { heroBannerPlaceholder } from '../assets/images/banners/hero-banner';
 import { useData } from '../cms/DataContext';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../firebase/config';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 const Home: React.FC = () => {
-  const { events: allEvents } = useData();
+  const { events: allEvents, refreshData } = useData();
+  const [isLoading, setIsLoading] = useState(false);
   
-  // Get upcoming events from the data context, or use fallback data if empty
-  const upcomingEvents = allEvents.filter(event => event.type === 'upcoming').length > 0 
-    ? allEvents
-        .filter(event => event.type === 'upcoming')
-        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-        .slice(0, 3)
-        .map(event => ({
-          id: event.id,
-          title: event.title,
-          date: new Date(event.date).toLocaleDateString('en-US', { 
-            year: 'numeric', 
-            month: 'long', 
-            day: 'numeric' 
-          }),
-          location: event.location,
-          description: event.description
-        }))
-    : [
-      {
-        id: 1,
-        title: 'Spring Tournament',
-        date: 'April 15-16, 2025',
-        location: 'City Sports Complex',
-        description: 'Annual spring tournament featuring teams from across the region.'
-      },
-      {
-        id: 2,
-        title: 'Team Practice',
-        date: 'Every Tuesday, 6-8 PM',
-        location: 'Memorial Park Fields',
-        description: 'Weekly team practice session. All team members are expected to attend.'
-      },
-      {
-        id: 3,
-        title: 'Charity Exhibition Match',
-        date: 'May 5, 2025',
-        location: 'University Stadium',
-        description: 'Charity match against the defending regional champions to raise funds for youth sports programs.'
+  // Force data refresh from Firestore when component mounts
+  useEffect(() => {
+    const loadEventData = async () => {
+      setIsLoading(true);
+      try {
+        // First try direct Firestore access
+        const eventsDoc = await getDoc(doc(db, 'website', 'events'));
+        if (eventsDoc.exists()) {
+          console.log("Home: Got events directly from Firestore:", eventsDoc.data().data);
+        }
+        
+        // Then use the DataContext refreshData method to ensure everything is in sync
+        refreshData();
+      } catch (error) {
+        console.error("Error loading event data:", error);
+      } finally {
+        setIsLoading(false);
       }
-    ];
+    };
+    
+    loadEventData();
+  }, []); // Remove dependency on refreshData to prevent constant refreshing
+  
+  
+  // Get upcoming events from the data context
+  const upcomingEvents = allEvents
+    .filter(event => event.type === 'upcoming')
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    .slice(0, 3)
+    .map(event => ({
+      id: event.id,
+      title: event.title,
+      date: new Date(event.date).toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      }),
+      location: event.location,
+      description: event.description
+    }));
 
   const quickLinks = [
     { title: 'Team Roster', path: '/roster' },
@@ -70,16 +74,34 @@ const Home: React.FC = () => {
       
       <div className="container">
         <section className="upcoming-events">
-          <h2>Upcoming Events</h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h2>Upcoming Events</h2>
+          </div>
           <div className="events-grid">
-            {upcomingEvents.map(event => (
-              <div key={event.id} className="event-card">
-                <h3>{event.title}</h3>
-                <p className="event-date">{event.date}</p>
-                <p className="event-location">{event.location}</p>
-                <p>{event.description}</p>
+            {isLoading ? (
+              <LoadingSpinner />
+            ) : upcomingEvents.length > 0 ? (
+              upcomingEvents.map(event => (
+                <Link to={`/event/${event.id}`} key={event.id} className="event-card-link">
+                  <div className="event-card">
+                    <h3>{event.title}</h3>
+                    <p className="event-date">{event.date}</p>
+                    <p className="event-location">{event.location}</p>
+                    <p>{event.description}</p>
+                    <div className="event-card-action">
+                      <span className="view-details">View Details →</span>
+                    </div>
+                  </div>
+                </Link>
+              ))
+            ) : (
+              <div className="no-events-message">
+                <p>No upcoming events at this time. Check back later or add events in the admin panel.</p>
+                <p style={{ marginTop: '10px', fontSize: '0.9em', color: '#666' }}>
+                  If you just added an event, try clicking the refresh button above.
+                </p>
               </div>
-            ))}
+            )}
           </div>
           <Link to="/schedule" className="view-more">View Full Schedule →</Link>
         </section>

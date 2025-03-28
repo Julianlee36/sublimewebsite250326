@@ -32,7 +32,7 @@ const AdminPage: React.FC = () => {
   
   // Handle direct settings changes (used for file uploads)
   const handleSettingsChange = (updatedSettings: Partial<SiteSettings>) => {
-    setEditItem({...editItem, ...updatedSettings});
+    setEditItem(editItem ? {...editItem, ...updatedSettings} : updatedSettings);
   };
   
   // Handle player image upload
@@ -46,12 +46,14 @@ const AdminPage: React.FC = () => {
         // Store the base64 temporarily for preview only
         const base64String = reader.result as string;
         // We also store the original file for later upload
-        setEditItem({
-          ...editItem, 
-          image: base64String, 
-          tempImageData: base64String,
-          imageFile: file
-        });
+        if (editItem) {
+          setEditItem({
+            ...editItem, 
+            image: base64String, 
+            tempImageData: base64String,
+            imageFile: file
+          });
+        }
       };
       
       reader.onerror = () => {
@@ -64,7 +66,9 @@ const AdminPage: React.FC = () => {
   
   // Handle removal of player image
   const handleRemovePlayerImage = () => {
-    setEditItem({...editItem, image: null});
+    if (editItem) {
+      setEditItem({...editItem, image: null});
+    }
   };
   
   // Handle about page image upload
@@ -82,7 +86,8 @@ const AdminPage: React.FC = () => {
         // Update the page content with the URL
         setPageContent({
           ...pageContent,
-          aboutImage: imageUrl
+          aboutImage: imageUrl,
+          coaches: pageContent?.coaches || [] // Ensure coaches is defined
         });
         
         saveData();
@@ -97,7 +102,8 @@ const AdminPage: React.FC = () => {
   const handleRemoveAboutImage = () => {
     setPageContent({
       ...pageContent,
-      aboutImage: ''
+      aboutImage: '',
+      coaches: pageContent?.coaches || [] // Ensure coaches is defined
     });
     
     saveData();
@@ -105,7 +111,7 @@ const AdminPage: React.FC = () => {
   
   // Handle coach operations
   const handleAddCoach = () => {
-    const coaches = pageContent.coaches || [];
+    const coaches = pageContent?.coaches || [];
     const newCoach = {
       id: coaches.length > 0 
         ? Math.max(...coaches.map(c => c.id)) + 1 
@@ -116,12 +122,14 @@ const AdminPage: React.FC = () => {
       image: null
     };
     
+    console.log('Creating new coach:', newCoach);
     setEditItem(newCoach);
     setEditMode(true);
     setActiveTab('pages'); // Ensure we stay on the pages tab
   };
   
   const handleEditCoach = (coach: Coach) => {
+    console.log('Editing coach:', coach);
     setEditItem({...coach});
     setEditMode(true);
     setActiveTab('pages'); // Ensure we stay on the pages tab
@@ -129,16 +137,19 @@ const AdminPage: React.FC = () => {
   
   const handleSaveCoach = async () => {
     try {
-      const coaches = pageContent.coaches || [];
+      const coaches = pageContent?.coaches || [];
       
       // Handle image upload to Firebase Storage if there's a base64 image
       let updatedItem = { ...editItem };
       
-      if (editItem.tempImageData && typeof editItem.tempImageData === 'string' && editItem.tempImageData.startsWith('data:')) {
+      if (editItem && 'tempImageData' in editItem && typeof editItem.tempImageData === 'string' && editItem.tempImageData.startsWith('data:')) {
         try {
           console.log("Uploading coach image to Firebase Storage");
-          const storagePath = `coaches/coach_${editItem.id}`;
-          const imageUrl = await uploadImageDataUrl(editItem.tempImageData, storagePath);
+          const storagePath = `coaches/coach_${editItem && 'id' in editItem ? editItem.id : '0'}`;
+          const imageUrl = await uploadImageDataUrl(
+            editItem.tempImageData, 
+            storagePath
+          );
           console.log("Coach image uploaded, URL:", imageUrl);
           
           // Replace the base64 with the URL
@@ -150,13 +161,15 @@ const AdminPage: React.FC = () => {
         }
       }
       
-      const updatedCoaches = editItem.id 
-        ? coaches.map(c => c.id === editItem.id ? updatedItem : c)
+      const itemId = editItem && 'id' in editItem ? editItem.id : null;
+      const updatedCoaches = itemId 
+        ? coaches.map(c => c.id === itemId ? updatedItem : c)
         : [...coaches, updatedItem];
       
       setPageContent({
         ...pageContent,
-        coaches: updatedCoaches
+        coaches: updatedCoaches,
+        aboutImage: pageContent?.aboutImage || '' // Ensure aboutImage is defined
       });
       
       setEditItem(null);
@@ -173,12 +186,14 @@ const AdminPage: React.FC = () => {
       return;
     }
     
-    setPageContent({
-      ...pageContent,
-      coaches: pageContent.coaches.filter(c => c.id !== id)
-    });
-    
-    saveData();
+    if (pageContent && pageContent.coaches) {
+      setPageContent({
+        ...pageContent,
+        coaches: pageContent.coaches.filter(c => c.id !== id)
+      });
+      
+      saveData();
+    }
   };
   
   // Handle coach image upload
@@ -190,7 +205,13 @@ const AdminPage: React.FC = () => {
       reader.onloadend = () => {
         // Convert image to base64 data URL
         const base64String = reader.result as string;
-        setEditItem({...editItem, image: base64String, tempImageData: base64String});
+        console.log('Coach image loaded, updating coach data');
+        setEditItem((prevItem: any) => {
+          if (!prevItem) return null;
+          const updated = {...prevItem, image: base64String, tempImageData: base64String};
+          console.log('Updated coach with image:', updated);
+          return updated;
+        });
       };
       
       reader.onerror = () => {
@@ -203,14 +224,20 @@ const AdminPage: React.FC = () => {
   
   // Handle removal of coach image
   const handleRemoveCoachImage = () => {
-    setEditItem({...editItem, image: null});
+    console.log('Removing coach image');
+    setEditItem((prevItem: any) => {
+      if (!prevItem) return null;
+      const updated = {...prevItem, image: null};
+      console.log('Updated coach without image:', updated);
+      return updated;
+    });
   };
 
   // Handle adding a new player to a specific team
   const handleAddPlayerToTeam = () => {
     if (!selectedTeam) return;
     
-    setEditItem({
+    const newPlayer = {
       id: players.length > 0 ? Math.max(...players.map(p => p.id)) + 1 : 1,
       name: '',
       position: '',
@@ -220,7 +247,9 @@ const AdminPage: React.FC = () => {
       isCaptain: false,
       image: null,
       team: selectedTeam.name
-    });
+    };
+    console.log('Creating new player:', newPlayer);
+    setEditItem(newPlayer);
     setEditMode(true);
   };
   
@@ -301,7 +330,10 @@ const AdminPage: React.FC = () => {
       newValue = parseInt(value) as any;
     }
     
-    setEditItem({ ...editItem, [name]: newValue });
+    console.log(`Updating editItem field ${name} to:`, newValue);
+    if (editItem) {
+      setEditItem({ ...editItem, [name]: newValue });
+    }
   };
 
   const handleSaveItem = async () => {
@@ -309,19 +341,22 @@ const AdminPage: React.FC = () => {
       console.log("Saving item:", editItem);
       
       // For player editing in team management
-      if (editItem && 'team' in editItem && 'isCaptain' in editItem) {
+      if (editItem && typeof editItem === 'object' && 'team' in (editItem ?? {}) && 'isCaptain' in (editItem ?? {})) {
         console.log("Saving player:", editItem);
         
         // Handle image upload to Firebase Storage if there's a base64 image
         let updatedItem = { ...editItem };
         
         // Check if we have a file to upload (preferred method)
-        if (editItem.imageFile instanceof File) {
+        if (editItem && 'imageFile' in editItem && editItem.imageFile instanceof File) {
           try {
             console.log("Uploading player image to Firebase Storage using File API");
             
             // Use the uploadPlayerImageAndSave function for the complete workflow
-            const imageUrl = await uploadPlayerImageAndSave(editItem.imageFile, editItem.id.toString());
+            const imageUrl = await uploadPlayerImageAndSave(
+              editItem.imageFile, 
+              editItem && 'id' in editItem ? editItem.id.toString() : '0'
+            );
             console.log("Player image workflow completed successfully. URL:", imageUrl);
             
             // Replace the base64 with the URL from getDownloadURL()
@@ -334,14 +369,17 @@ const AdminPage: React.FC = () => {
           }
         }
         // Fallback to base64 upload if no File object is available
-        else if (editItem.tempImageData && typeof editItem.tempImageData === 'string' && editItem.tempImageData.startsWith('data:')) {
+        else if (editItem && 'tempImageData' in editItem && typeof editItem.tempImageData === 'string' && editItem.tempImageData.startsWith('data:')) {
           try {
             console.log("Uploading player image to Firebase Storage using base64 data");
             // Use a consistent path format with timestamp
-            const storagePath = `players/player_${editItem.id}_${Date.now()}`;
+            const storagePath = `players/player_${editItem && 'id' in editItem ? editItem.id : '0'}_${Date.now()}`;
             
             // Use our improved uploadImageDataUrl function that handles CORS properly
-            const imageUrl = await uploadImageDataUrl(editItem.tempImageData, storagePath);
+            const imageUrl = await uploadImageDataUrl(
+              editItem && 'tempImageData' in editItem ? editItem.tempImageData : '', 
+              storagePath
+            );
             console.log("Image uploaded URL:", imageUrl);
             
             // Replace the base64 with the URL from getDownloadURL()
@@ -357,8 +395,9 @@ const AdminPage: React.FC = () => {
           }
         }
         
-        if (players.find(p => p.id === editItem.id)) {
-          const updatedPlayers = players.map(p => p.id === editItem.id ? updatedItem : p);
+        const itemId = editItem && 'id' in editItem ? editItem.id : null;
+        if (itemId && players.find(p => p.id === itemId)) {
+          const updatedPlayers = players.map(p => p.id === itemId ? updatedItem : p);
           console.log("Updating existing player, new players array:", updatedPlayers);
           setPlayers(updatedPlayers);
         } else {
@@ -369,8 +408,8 @@ const AdminPage: React.FC = () => {
         
         // Save players to Firestore (URLs instead of Base64)
         let playersToSave;
-        if (players.find(p => p.id === editItem.id)) {
-          playersToSave = players.map(p => p.id === editItem.id ? updatedItem : p);
+        if (itemId && players.find(p => p.id === itemId)) {
+          playersToSave = players.map(p => p.id === itemId ? updatedItem : p);
         } else {
           playersToSave = [...players, updatedItem];
         }
@@ -381,6 +420,8 @@ const AdminPage: React.FC = () => {
         localStorage.setItem('players', JSON.stringify(playersToSave));
         console.log("Players saved to Firestore and localStorage");
       } else {
+        let needsDirectFirestoreUpdate = false;
+        
         // Handle other data types
         switch (activeTab) {
           case 'alumni':
@@ -396,6 +437,7 @@ const AdminPage: React.FC = () => {
             } else {
               setEvents([...events, editItem]);
             }
+            needsDirectFirestoreUpdate = true;
             break;
           case 'news':
             if (news.find(n => n.id === editItem.id)) {
@@ -427,6 +469,22 @@ const AdminPage: React.FC = () => {
         // For other data types that still use the saveData method
         console.log("Calling saveData for other data types...");
         await saveData();
+        
+        // For events, also update Firestore directly to ensure immediate consistency
+        if (needsDirectFirestoreUpdate && activeTab === 'events') {
+          const updatedEvents = events.find(e => e.id === editItem.id)
+            ? events.map(e => e.id === editItem.id ? editItem : e)
+            : [...events, editItem];
+            
+          // Update Firestore directly
+          await setDoc(doc(db, 'website', 'events'), { data: updatedEvents });
+          
+          // Update localStorage as well
+          localStorage.setItem('events', JSON.stringify(updatedEvents));
+          
+          console.log("Events updated directly in Firestore and localStorage for immediate consistency");
+        }
+        
         console.log("Save completed via saveData");
       }
       
@@ -489,21 +547,21 @@ const AdminPage: React.FC = () => {
     if (!editItem) return null;
 
     // Player editing form (can be accessed from team management)
-    if (editItem && 'team' in editItem && 'isCaptain' in editItem) {
+    if (typeof editItem === 'object' && 'team' in editItem && 'isCaptain' in editItem) {
       return (
         <div className="edit-form">
           <div className="form-group">
             <label>Name:</label>
-            <input type="text" name="name" value={editItem.name} onChange={handleInputChange} />
+            <input type="text" name="name" value={editItem && 'name' in editItem ? editItem.name : ''} onChange={handleInputChange} />
           </div>
           <div className="form-group">
             <label>Number:</label>
-            <input type="number" name="number" value={editItem.number} onChange={handleInputChange} />
+            <input type="number" name="number" value={editItem && 'number' in editItem ? editItem.number : 0} onChange={handleInputChange} />
           </div>
           {!selectedTeam && (
             <div className="form-group">
               <label>Team:</label>
-              <select name="team" value={editItem.team} onChange={handleInputChange}>
+              <select name="team" value={editItem && 'team' in editItem ? editItem.team : ''} onChange={handleInputChange}>
                 <option value="">Select team</option>
                 {teams.map(team => (
                   <option key={team.id} value={team.name}>
@@ -515,10 +573,10 @@ const AdminPage: React.FC = () => {
           )}
           <div className="form-group">
             <label>Bio:</label>
-            <textarea name="bio" value={editItem.bio} onChange={handleInputChange} rows={4} />
+            <textarea name="bio" value={editItem && 'bio' in editItem ? editItem.bio : ''} onChange={handleInputChange} rows={4} />
           </div>
           <div className="form-group checkbox">
-            <input type="checkbox" name="isCaptain" checked={editItem.isCaptain} onChange={handleInputChange} />
+            <input type="checkbox" name="isCaptain" checked={editItem && 'isCaptain' in editItem ? editItem.isCaptain : false} onChange={handleInputChange} />
             <label>Is Captain</label>
           </div>
           
@@ -535,7 +593,7 @@ const AdminPage: React.FC = () => {
               <label htmlFor="player-image-upload" className="file-upload-button">
                 Choose Image
               </label>
-              {editItem.image && (
+              {editItem && 'image' in editItem && editItem.image && (
                 <button 
                   type="button" 
                   onClick={handleRemovePlayerImage}
@@ -549,7 +607,7 @@ const AdminPage: React.FC = () => {
               Upload a photo of the player. Recommended: square photo focused on face/upper body.
             </small>
             
-            {editItem.image && (
+            {editItem && 'image' in editItem && editItem.image && (
               <div className="image-preview-container">
                 <div className="player-image-preview">
                   <div 
@@ -844,91 +902,10 @@ const AdminPage: React.FC = () => {
           </div>
         ));
       case 'pages':
-        if (editMode && activeTab === 'pages') {
-          // Coach edit form
-          return (
-            <div className="edit-container">
-              <h2>{editItem.id ? 'Edit' : 'Add New'} Coach</h2>
-              <div className="edit-form">
-                <div className="form-group">
-                  <label>Name:</label>
-                  <input 
-                    type="text" 
-                    name="name" 
-                    value={editItem.name} 
-                    onChange={handleInputChange}
-                    placeholder="Full name"
-                    required
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Role:</label>
-                  <input 
-                    type="text" 
-                    name="role" 
-                    value={editItem.role} 
-                    onChange={handleInputChange}
-                    placeholder="e.g., Head Coach, Assistant Coach, etc."
-                    required
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Bio:</label>
-                  <textarea 
-                    name="bio" 
-                    value={editItem.bio} 
-                    onChange={handleInputChange}
-                    rows={4}
-                    placeholder="Brief biography"
-                    required
-                  />
-                </div>
-                
-                <div className="form-group">
-                  <label>Coach Photo:</label>
-                  <div className="file-upload-container">
-                    <input 
-                      type="file" 
-                      onChange={handleCoachImageUpload} 
-                      accept="image/*"
-                      id="coach-image-upload"
-                      className="file-input"
-                    />
-                    <label htmlFor="coach-image-upload" className="file-upload-button">
-                      Choose Image
-                    </label>
-                    {editItem.image && (
-                      <button 
-                        type="button" 
-                        onClick={handleRemoveCoachImage}
-                        className="remove-image-btn"
-                      >
-                        Remove Image
-                      </button>
-                    )}
-                  </div>
-                  <small className="input-help">
-                    Upload a photo of the coach. Square images work best.
-                  </small>
-                  
-                  {editItem.image && (
-                    <div className="image-preview-container">
-                      <div className="player-image-preview">
-                        <div 
-                          className="preview-image" 
-                          style={{ backgroundImage: `url(${editItem.image})` }}
-                        ></div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div className="edit-actions">
-                <button onClick={handleSaveCoach} className="save-btn">Save Coach</button>
-                <button onClick={handleCancelEdit}>Cancel</button>
-              </div>
-            </div>
-          );
+        // For pages tab, we don't need to return a form here since we handle coaches in the main render method
+        if (editItem && typeof editItem === 'object' && 'role' in (editItem ?? {})) {
+          // Return null for coaches, as we're handling them in the main render method
+          return null;
         }
         
         // Regular page content view
@@ -939,11 +916,11 @@ const AdminPage: React.FC = () => {
               <h3>About Page</h3>
               <div className="page-section">
                 <h4>Team History Image</h4>
-                {pageContent.aboutImage ? (
+                {pageContent?.aboutImage ? (
                   <div className="page-image-preview">
                     <div 
                       className="page-image" 
-                      style={{ backgroundImage: `url(${pageContent.aboutImage})` }}
+                      style={{ backgroundImage: `url(${pageContent?.aboutImage})` }}
                     ></div>
                     <button 
                       className="remove-image-btn" 
@@ -992,7 +969,7 @@ const AdminPage: React.FC = () => {
               </div>
               
               <div className="coaches-list">
-                {(pageContent.coaches || []).map(coach => (
+                {(pageContent?.coaches || []).map(coach => (
                   <div key={coach.id} className="coach-item">
                     <div className="coach-preview">
                       {coach.image ? (
@@ -1024,7 +1001,7 @@ const AdminPage: React.FC = () => {
                   </div>
                 ))}
                 
-                {(!pageContent.coaches || pageContent.coaches.length === 0) && (
+                {(!pageContent?.coaches || pageContent?.coaches.length === 0) && (
                   <div className="empty-state">
                     <p>No coaches added yet. Add your first coach using the button above.</p>
                   </div>
@@ -1118,12 +1095,96 @@ const AdminPage: React.FC = () => {
       </div>
 
       <div className="admin-content">
-        {editMode ? (
+        {editMode && activeTab === 'pages' && editItem && typeof editItem === 'object' && 'role' in (editItem ?? {}) ? (
+          // Special case for coach editing (use dedicated coach form)
+          <div className="edit-container">
+            <h2>{editItem && 'id' in editItem ? 'Edit' : 'Add New'} Coach</h2>
+            <div className="edit-form">
+              <div className="form-group">
+                <label>Name:</label>
+                <input 
+                  type="text" 
+                  name="name" 
+                  value={editItem && 'name' in editItem ? editItem.name : ''}
+                  onChange={handleInputChange}
+                  placeholder="Full name"
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label>Role:</label>
+                <input 
+                  type="text" 
+                  name="role" 
+                  value={editItem && 'role' in editItem ? editItem.role : ''}
+                  onChange={handleInputChange}
+                  placeholder="e.g., Head Coach, Assistant Coach, etc."
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label>Bio:</label>
+                <textarea 
+                  name="bio" 
+                  value={editItem && 'bio' in editItem ? editItem.bio : ''}
+                  onChange={handleInputChange}
+                  rows={4}
+                  placeholder="Brief biography"
+                  required
+                />
+              </div>
+              
+              <div className="form-group">
+                <label>Coach Photo:</label>
+                <div className="file-upload-container">
+                  <input 
+                    type="file" 
+                    onChange={handleCoachImageUpload} 
+                    accept="image/*"
+                    id="coach-image-upload"
+                    className="file-input"
+                    key={`coach-upload-${Date.now()}`} /* Force re-render of input */
+                  />
+                  <label htmlFor="coach-image-upload" className="file-upload-button">
+                    Choose Image
+                  </label>
+                  {editItem && 'image' in editItem && editItem.image && (
+                    <button 
+                      type="button" 
+                      onClick={handleRemoveCoachImage}
+                      className="remove-image-btn"
+                    >
+                      Remove Image
+                    </button>
+                  )}
+                </div>
+                <small className="input-help">
+                  Upload a photo of the coach. Square images work best.
+                </small>
+                
+                {editItem && 'image' in editItem && editItem.image && (
+                  <div className="image-preview-container">
+                    <div className="player-image-preview">
+                      <div 
+                        className="preview-image" 
+                        style={{ backgroundImage: `url(${editItem.image})` }}
+                      ></div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="edit-actions">
+              <button onClick={handleSaveCoach} className="save-btn">Save Coach</button>
+              <button onClick={handleCancelEdit}>Cancel</button>
+            </div>
+          </div>
+        ) : editMode ? (
           <div className="edit-container">
             <h2>
               {activeTab === 'settings' ? 
                 'Edit Site Settings' : 
-                `${editItem.id ? 'Edit' : 'Add New'} ${activeTab.slice(0, -1)}`
+                `${editItem && 'id' in editItem ? 'Edit' : 'Add New'} ${activeTab.slice(0, -1)}`
               }
             </h2>
             {renderForm()}

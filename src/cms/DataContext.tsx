@@ -341,13 +341,24 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       const siteSettingsDoc = await getDoc(doc(db, 'website', 'siteSettings'));
       
       // Update state with Firestore data
-      if (playersDoc.exists()) setPlayers(playersDoc.data().data);
-      if (alumniDoc.exists()) setAlumni(alumniDoc.data().data);
-      if (eventsDoc.exists()) setEvents(eventsDoc.data().data);
-      if (newsDoc.exists()) setNews(newsDoc.data().data);
-      if (teamsDoc.exists()) setTeams(teamsDoc.data().data);
-      if (pageContentDoc.exists()) setPageContent(pageContentDoc.data().data);
-      if (siteSettingsDoc.exists()) setSiteSettings(siteSettingsDoc.data().data);
+      if (playersDoc.exists()) setPlayers(playersDoc.data()?.data || []);
+      if (alumniDoc.exists()) setAlumni(alumniDoc.data()?.data || []);
+      if (eventsDoc.exists()) setEvents(eventsDoc.data()?.data || []);
+      if (newsDoc.exists()) setNews(newsDoc.data()?.data || []);
+      if (teamsDoc.exists()) setTeams(teamsDoc.data()?.data || []);
+      if (pageContentDoc.exists()) {
+        const pageData = pageContentDoc.data()?.data;
+        // Make sure all required fields exist
+        setPageContent({
+          aboutImage: pageData?.aboutImage || '',
+          coaches: pageData?.coaches || initialPageContent.coaches
+        });
+      }
+      if (siteSettingsDoc.exists() && siteSettingsDoc.data()?.data) {
+        setSiteSettings(siteSettingsDoc.data().data);
+      } else {
+        setSiteSettings(initialSiteSettings);
+      }
       
     } catch (error) {
       console.error("Error loading data from Firestore:", error);
@@ -383,8 +394,8 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
         // Check if we have data in Firestore just to confirm our data is getting saved
         const playersDoc = await getDoc(doc(db, 'website', 'players'));
         if (playersDoc.exists()) {
-          console.log('Firestore players data exists:', playersDoc.data().data ? 
-            `${playersDoc.data().data.length} players found` : 'No player data');
+          console.log('Firestore players data exists:', playersDoc.data()?.data ? 
+            `${playersDoc.data()?.data.length} players found` : 'No player data');
         } else {
           console.log('No players document in Firestore');
         }

@@ -20,12 +20,12 @@ const ImageWithFallback: React.FC<ImageWithFallbackProps> = ({
   style = {}
 }) => {
   const [error, setError] = useState(false);
-  const [imageSrc, setImageSrc] = useState(src);
+  const [imageSrc, setImageSrc] = useState(src || '');
   
   // Reset error state if src changes
   useEffect(() => {
     setError(false);
-    setImageSrc(src);
+    setImageSrc(src || '');  // Ensure we never set null as the image source
   }, [src]);
 
   const handleError = () => {
@@ -37,15 +37,20 @@ const ImageWithFallback: React.FC<ImageWithFallbackProps> = ({
   const isValidUrl = (url: string) => {
     if (!url) return false;
     
-    // Check if it's a Firebase Storage URL but missing token (malformed)
-    if (url.includes('firebasestorage.googleapis.com') && 
-        !url.includes('token=') && 
-        !url.includes('alt=media')) {
-      console.warn('Firebase Storage URL missing authentication token:', url);
+    try {
+      // Check if it's a Firebase Storage URL but missing token (malformed)
+      if (typeof url === 'string' && url.includes('firebasestorage.googleapis.com') && 
+          !url.includes('token=') && 
+          !url.includes('alt=media')) {
+        console.warn('Firebase Storage URL missing authentication token:', url);
+        return false;
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('Error validating URL:', error);
       return false;
     }
-    
-    return true;
   };
 
   // Render a placeholder if there's no fallback
