@@ -1,17 +1,146 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { useData, Event } from '../cms/DataContext';
+import { useData, Event, Player } from '../cms/DataContext';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../firebase/config';
+import { getDownloadURL, ref } from 'firebase/storage';
+import { storage } from '../firebase/config';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ImageWithFallback from '../components/ImageWithFallback';
 import '../styles/EventDetail.css';
 
 const EventDetail: React.FC = () => {
   const { eventId } = useParams<{ eventId: string }>();
-  const { events } = useData();
+  const { events, players } = useData();
   const [event, setEvent] = useState<Event | null>(null);
+  const [eventImage, setEventImage] = useState<string | null>(null);
+  const [campaignPlayers, setCampaignPlayers] = useState<Player[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRosterLoading, setIsRosterLoading] = useState(false);
+  const [isImageLoading, setIsImageLoading] = useState(false);
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('roster');
+
+  // Function to fetch and refresh the event image URL
+  const fetchEventImage = async (eventObj: Event) => {
+    if (!eventObj || !eventObj.image) {
+      setEventImage(null);
+      return;
+    }
+    
+    setIsImageLoading(true);
+    
+    try {
+      // Check if the image URL is already a valid Firebase Storage URL with auth token
+      if (eventObj.image.includes('firebasestorage.googleapis.com') && eventObj.image.includes('token=')) {
+        console.log("Event already has a valid image URL with auth token");
+        setEventImage(eventObj.image);
+        return;
+      }
+      
+      // Extract the path from the Firebase Storage URL (if possible)
+      if (eventObj.image.includes('firebasestorage.googleapis.com')) {
+        // Try to get a new download URL for the image
+        try {
+          // Extract the path from the URL - this is a simplified approach
+          // A more robust approach would parse the URL and extract just the path
+          const pathRegex = /\/o\/(.+?)(\?|$)/;
+          const match = eventObj.image.match(pathRegex);
+          
+          if (match && match[1]) {
+            // Decode the path that was URL-encoded
+            const path = decodeURIComponent(match[1]);
+            console.log("Extracted path from Firebase URL:", path);
+            
+            // Get a fresh download URL with a valid token
+            const storageReference = ref(storage, path);
+            const freshUrl = await getDownloadURL(storageReference);
+            console.log("Got fresh image URL with auth token");
+            setEventImage(freshUrl);
+          } else {
+            console.log("Could not extract path from Firebase URL, using original URL");
+            setEventImage(eventObj.image);
+          }
+        } catch (storageError) {
+          console.error("Error refreshing Firebase Storage URL:", storageError);
+          // Fall back to the original URL
+          setEventImage(eventObj.image);
+        }
+      } else {
+        // Not a Firebase Storage URL, use as is
+        setEventImage(eventObj.image);
+      }
+    } catch (error) {
+      console.error("Error handling event image:", error);
+      setEventImage(eventObj.image); // Fallback to original URL
+    } finally {
+      setIsImageLoading(false);
+    }
+  };
+
+  // Function to fetch campaign roster players
+  const fetchCampaignRoster = async (campaignId: string) => {
+    setIsRosterLoading(true);
+    try {
+      // First check if this event already has a roster attached in memory
+      const currentEvent = events.find(e => e.id.toString() === campaignId);
+      
+      if (currentEvent?.roster && Array.isArray(currentEvent.roster) && currentEvent.roster.length > 0) {
+        console.log("Using roster from event object:", currentEvent.roster.length, "players");
+        setCampaignPlayers(currentEvent.roster);
+        return;
+      }
+      
+      // Otherwise, fetch player data from Firestore
+      console.log(`Fetching campaign roster for campaign ID: ${campaignId}`);
+      
+      // Approach 1: Check if the campaign has roster IDs stored
+      const campaignDoc = await getDoc(doc(db, 'website', 'events'));
+      if (campaignDoc.exists() && campaignDoc.data()?.data) {
+        const allEvents = campaignDoc.data().data;
+        const campaignData = allEvents.find((e: any) => e.id.toString() === campaignId);
+        
+        if (campaignData && campaignData.roster && Array.isArray(campaignData.roster)) {
+          console.log("Found roster data in Firestore campaign document:", campaignData.roster.length, "players");
+          setCampaignPlayers(campaignData.roster);
+          return;
+        }
+      }
+      
+      // Approach 2: If no roster found directly, look for players with team assignment matching campaign name
+      const playersDoc = await getDoc(doc(db, 'website', 'players'));
+      if (playersDoc.exists() && playersDoc.data()?.data) {
+        const allPlayers = playersDoc.data().data;
+        
+        // If the event has a teamName property, use that to match players
+        if (event?.teamName) {
+          const matchedPlayers = allPlayers.filter((player: Player) => 
+            player.team === event.teamName
+          );
+          
+          console.log(`Found ${matchedPlayers.length} players matching team name "${event.teamName}"`);
+          setCampaignPlayers(matchedPlayers);
+        }
+        // Otherwise, use the current global players that aren't assigned to other teams
+        else {
+          setCampaignPlayers(players);
+        }
+      } else {
+        // Fallback to current global players state if Firestore query fails
+        setCampaignPlayers(players);
+      }
+    } catch (error) {
+      console.error("Error fetching campaign roster:", error);
+      // Fallback to using any roster data already in the event object
+      if (event?.roster && Array.isArray(event.roster)) {
+        setCampaignPlayers(event.roster);
+      } else {
+        setCampaignPlayers([]);
+      }
+    } finally {
+      setIsRosterLoading(false);
+    }
+  };
 
   useEffect(() => {
     const loadEvent = async () => {
@@ -23,6 +152,14 @@ const EventDetail: React.FC = () => {
           const foundEvent = events.find(e => e && typeof e === 'object' && e.id && e.id.toString() === eventId);
           if (foundEvent) {
             setEvent(foundEvent);
+            
+            // Fetch/refresh the event image URL
+            await fetchEventImage(foundEvent);
+            
+            // If this is a campaign, fetch its roster
+            if (foundEvent.eventType === 'campaign' && eventId) {
+              fetchCampaignRoster(eventId);
+            }
           }
         }
       } catch (error) {
@@ -33,7 +170,7 @@ const EventDetail: React.FC = () => {
     };
     
     loadEvent();
-  }, [eventId, events]);
+  }, [eventId, events, players]);
 
   // Redirect to schedule page if event not found
   useEffect(() => {
@@ -154,17 +291,18 @@ const EventDetail: React.FC = () => {
       case 'roster':
         return (
           <div className="tab-content roster-tab">
-            {isLoading ? (
+            {isRosterLoading ? (
               <div className="loading-container">
                 <LoadingSpinner />
               </div>
-            ) : event.roster && event.roster.length > 0 ? (
+            ) : campaignPlayers && campaignPlayers.length > 0 ? (
               <div className="campaign-roster">
                 <h3 className="roster-heading">
                   {event.teamName ? `${event.teamName} Roster` : 'Campaign Roster'}
                 </h3>
+                
                 <div className="players-grid">
-                  {event.roster.map(player => (
+                  {campaignPlayers.map(player => (
                     <div key={player.id} className="player-card">
                       <div className="player-image">
                         {player.image ? (
@@ -184,7 +322,6 @@ const EventDetail: React.FC = () => {
                       <div className="player-info">
                         <h3>{player.name}</h3>
                         <p className="player-number">#{player.number}</p>
-                        <p className="player-bio">{player.bio}</p>
                       </div>
                     </div>
                   ))}
@@ -255,9 +392,13 @@ const EventDetail: React.FC = () => {
             </div>
             
             <div className="event-image-container">
-              {event.image ? (
+              {isImageLoading ? (
+                <div className="image-loading">
+                  <LoadingSpinner />
+                </div>
+              ) : eventImage ? (
                 <ImageWithFallback
-                  src={event.image}
+                  src={eventImage}
                   alt={event.title}
                   fallbackSrc="/placeholder-event.jpg"
                   className="event-full-image"

@@ -84,6 +84,7 @@
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  padding-right: 1.5rem; /* Add spacing between metadata and image */
 }
 
 .metadata-item {
@@ -315,9 +316,11 @@
 
 .empty-roster {
   display: flex;
+  flex-direction: column;
   justify-content: center;
   align-items: center;
   min-height: 200px;
+  gap: 1.5rem;
 }
 
 .no-roster {
@@ -335,6 +338,36 @@
   justify-content: center;
   align-items: center;
   min-height: 300px;
+}
+
+.roster-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: 2rem;
+}
+
+.refresh-button {
+  background-color: var(--primary-color);
+  color: var(--secondary-color);
+  border: none;
+  padding: 0.6rem 1.2rem;
+  border-radius: 4px;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
+.refresh-button:hover {
+  background-color: var(--secondary-color);
+  color: var(--primary-color);
+}
+
+.refresh-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* Gallery Section */
@@ -412,26 +445,42 @@
 }
 
 .event-image-container {
-  height: 100%;
-  min-height: 300px;
+  max-width: 350px;
+  height: auto;
+  margin-left: auto; /* Right-align on desktop */
+  border-radius: 0.75rem; /* rounded-xl */
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .event-full-image {
   width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  height: auto;
+  max-height: 350px;
+  object-fit: contain;
+  border-radius: 0.75rem; /* rounded-xl */
 }
 
 .event-image-placeholder {
   width: 100%;
-  height: 100%;
+  min-height: 200px;
+  max-height: 300px;
   background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
-  border-radius: 8px;
+  border-radius: 0.75rem; /* rounded-xl */
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+.image-loading {
+  width: 100%;
+  background-color: var(--light-gray);
+  border-radius: 0.75rem; /* rounded-xl */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  max-height: 300px;
 }
 
 .placeholder-text {
@@ -448,7 +497,15 @@
   
   .event-image-container {
     order: -1;
-    height: 250px;
+    max-width: 100%;
+    margin: 0 auto 1.5rem auto; /* Center on mobile with bottom margin */
+    height: auto;
+  }
+  
+  .event-full-image,
+  .event-image-placeholder,
+  .image-loading {
+    max-height: 250px;
   }
   
   .event-tabs {
@@ -467,5 +524,9 @@
   
   .gallery-item {
     height: 150px;
+  }
+  
+  .event-metadata {
+    padding-left: 0; /* Reset any padding on mobile */
   }
 }
