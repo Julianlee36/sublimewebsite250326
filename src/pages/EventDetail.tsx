@@ -11,7 +11,7 @@ const EventDetail: React.FC = () => {
   const [event, setEvent] = useState<Event | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('about');
+  const [activeTab, setActiveTab] = useState('roster');
 
   useEffect(() => {
     const loadEvent = async () => {
@@ -96,11 +96,9 @@ const EventDetail: React.FC = () => {
 
   // Function to render tabs based on event type
   const renderTabs = () => {
-    const tabs = [
-      { id: 'about', label: 'About' }
-    ];
+    const tabs = [];
     
-    // Add roster tab only for campaigns
+    // Only show roster tab for campaigns
     if (event.eventType === 'campaign') {
       tabs.push({ id: 'roster', label: 'Roster' });
     }
@@ -156,32 +154,46 @@ const EventDetail: React.FC = () => {
       case 'roster':
         return (
           <div className="tab-content roster-tab">
-            {event.roster && event.roster.length > 0 ? (
-              <div className="roster-list">
-                {event.roster.map(player => (
-                  <div key={player.id} className="roster-player">
-                    <div className="player-image">
-                      {player.image ? (
-                        <ImageWithFallback
-                          src={player.image}
-                          alt={player.name}
-                          fallbackSrc="/placeholder-player.jpg"
-                        />
-                      ) : (
-                        <div className="player-placeholder">
-                          {player.name.substring(0, 1)}
-                        </div>
-                      )}
+            {isLoading ? (
+              <div className="loading-container">
+                <LoadingSpinner />
+              </div>
+            ) : event.roster && event.roster.length > 0 ? (
+              <div className="campaign-roster">
+                <h3 className="roster-heading">
+                  {event.teamName ? `${event.teamName} Roster` : 'Campaign Roster'}
+                </h3>
+                <div className="players-grid">
+                  {event.roster.map(player => (
+                    <div key={player.id} className="player-card">
+                      <div className="player-image">
+                        {player.image ? (
+                          <ImageWithFallback
+                            src={player.image}
+                            alt={`${player.name} #${player.number}`}
+                            fallbackSrc="/placeholder-player.jpg"
+                            className="player-photo"
+                          />
+                        ) : (
+                          <div className="image-placeholder">
+                            #{player.number}
+                          </div>
+                        )}
+                        {player.isCaptain && <span className="captain-badge">Captain</span>}
+                      </div>
+                      <div className="player-info">
+                        <h3>{player.name}</h3>
+                        <p className="player-number">#{player.number}</p>
+                        <p className="player-bio">{player.bio}</p>
+                      </div>
                     </div>
-                    <div className="player-info">
-                      <h3>{player.name} {player.isCaptain && <span className="captain-badge">Captain</span>}</h3>
-                      <p>#{player.number} · {player.position}</p>
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             ) : (
-              <p className="no-roster">Roster information is not available for this campaign yet.</p>
+              <div className="empty-roster">
+                <p className="no-roster">Roster information is not available for this campaign yet.</p>
+              </div>
             )}
           </div>
         );
@@ -265,7 +277,34 @@ const EventDetail: React.FC = () => {
           
           {/* Tab content */}
           <div className="event-tab-content">
-            {renderTabContent()}
+            {event.eventType === 'campaign' ? renderTabContent() : (
+              <div className="tab-content about-tab">
+                <div className="event-description">
+                  <p>{event.description}</p>
+                </div>
+                
+                {event.result && (
+                  <div className="event-result">
+                    <h3>Results</h3>
+                    <p>{event.result}</p>
+                  </div>
+                )}
+                
+                {event.livestreamLink && (
+                  <div className="event-livestream">
+                    <h3>Livestream</h3>
+                    <a 
+                      href={event.livestreamLink} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="livestream-button"
+                    >
+                      Watch Livestream
+                    </a>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
           
           {/* Gallery section (only for completed events) */}
