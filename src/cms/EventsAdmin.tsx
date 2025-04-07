@@ -87,6 +87,8 @@ const EventsAdmin: React.FC = () => {
     if (!editItem) return;
     
     try {
+      console.log("Saving event/campaign:", editItem);
+      
       // Update events array
       let updatedEvents: Event[];
       
@@ -98,15 +100,27 @@ const EventsAdmin: React.FC = () => {
         updatedEvents = [...events, editItem];
       }
       
-      // Update state
+      console.log("Updated events array:", updatedEvents);
+      
+      // Update state - IMPORTANT: This needs to happen before saveData is called
       setEvents(updatedEvents);
       
-      // Save to Firestore via DataContext
-      await saveData();
-      
-      // Reset form
-      setEditItem(null);
-      setEditMode(false);
+      // Make sure the state update propagates before saving
+      setTimeout(async () => {
+        try {
+          // Save to Firestore via DataContext
+          console.log("Calling saveData() to persist to Firestore");
+          await saveData();
+          console.log("Save completed");
+          
+          // Reset form
+          setEditItem(null);
+          setEditMode(false);
+        } catch (saveError) {
+          console.error("Error in delayed save:", saveError);
+          alert("Failed to save event. Please try again.");
+        }
+      }, 500);
     } catch (error) {
       console.error("Error saving event:", error);
       alert("Failed to save event. Please try again.");

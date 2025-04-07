@@ -306,16 +306,17 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     const savedNews = localStorage.getItem('news');
     return savedNews ? JSON.parse(savedNews) : initialNews;
   });
-  
+
+  const [campaigns, setCampaigns] = useState<Campaign[]>(() => {
+    const savedCampaigns = localStorage.getItem('campaigns');
+    return savedCampaigns ? JSON.parse(savedCampaigns) : initialCampaigns;
+  });
+
   const [teams, setTeams] = useState<Team[]>(() => {
     const savedTeams = localStorage.getItem('teams');
     return savedTeams ? JSON.parse(savedTeams) : initialTeams;
   });
-  
-  // Campaigns are now managed as events with eventType: 'campaign'
-  // This state is kept for backward compatibility but not actively updated
-  const [campaigns, setCampaigns] = useState<Campaign[]>(initialCampaigns);
-  
+
   const [pageContent, setPageContent] = useState<PageContent>(() => {
     const savedPageContent = localStorage.getItem('pageContent');
     return savedPageContent ? JSON.parse(savedPageContent) : initialPageContent;
@@ -326,16 +327,16 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     return savedSettings ? JSON.parse(savedSettings) : initialSiteSettings;
   });
 
-  // Save data to Firebase Firestore
+  // Save data to localStorage and Firebase Firestore
   const saveData = async () => {
     try {
       console.log('Saving data to Firestore...');
-      
+
       // CRITICAL: First, check if there's any existing coach data in Firestore that we should preserve
       try {
         const existingPageContentDoc = await getDoc(doc(db, 'website', 'pageContent'));
         if (existingPageContentDoc.exists() && existingPageContentDoc.data()?.data) {
-          const existingData = existingPageContentDoc.data()?.data;
+          const existingData = existingPageContentDoc.data().data;
           const existingCoaches = existingData?.coaches || [];
           
           if (existingCoaches.length > 0 && (!pageContent.coaches || pageContent.coaches.length === 0)) {
@@ -350,332 +351,188 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       } catch (checkError) {
         console.error("Error checking existing pageContent:", checkError);
       }
-      
+
       // Sanitize data for Firestore to avoid "invalid nested entity" errors
-      const sanitizeData = (data: any[]): any[] => {
-        return data.map(item => {
-          const sanitized: any = { ...item };
-          
-          // Handle large image strings by storing a placeholder in Firestore
-          if (sanitized.image && typeof sanitized.image === 'string' && sanitized.image.length > 10000) {
-            sanitized.image = '[Image data stored locally]';
-          }
-          
-          return sanitized;
-        });
-      };
-      
+      const sanitizeData = (data: any[]): any[] => data.map(item => {
+        // Create a copy of the item to sanitize
+        const sanitized = {...item};
+        
+        // Special handling for image data
+        if (sanitized.image && typeof sanitized.image === 'string' && sanitized.image.length > 10000) {
+          sanitized.image = '[Image data stored locally]';
+        }
+        
+        return sanitized;
+      });
+
       // Store data collections in Firestore with sanitization
       // Players are handled specially in AdminPage.tsx
       await setDoc(doc(db, 'website', 'alumni'), { data: sanitizeData(alumni) });
-      
-      // Log events before saving to Firestore
-      console.log(`Saving ${events.length} events/campaigns to Firestore:`, 
-        events.map(e => ({id: e.id, title: e.title, type: e.type, eventType: e.eventType})));
-      
       await setDoc(doc(db, 'website', 'events'), { data: events }); // Events don't have image data
-      console.log("Events document saved to Firestore");
-      
       await setDoc(doc(db, 'website', 'news'), { data: sanitizeData(news) });
-      // No longer saving campaigns separately as they're included in events
-      // await setDoc(doc(db, 'website', 'campaigns'), { data: sanitizeData(campaigns) });
+      await setDoc(doc(db, 'website', 'campaigns'), { data: sanitizeData(campaigns) });
       await setDoc(doc(db, 'website', 'teams'), { data: teams }); // Teams don't have complex data
-      
+
       // IMPORTANT: For pageContent, we need to ensure we're not wiping out coaches
-      const coachesToSave = pageContent.coaches && pageContent.coaches.length > 0 
-        ? pageContent.coaches 
+      const coachesToSave = pageContent.coaches && pageContent.coaches.length > 0
+        ? pageContent.coaches
         : (await getDoc(doc(db, 'website', 'pageContent'))).data()?.data?.coaches || [];
-        
+
       console.log(`Saving pageContent with ${coachesToSave.length} coaches`);
-      
+
       // Special handling for pageContent with images
-      const sanitizedPageContent = { 
+      const sanitizedPageContent = {
         ...pageContent,
         coaches: coachesToSave.length > 0 ? sanitizeData(coachesToSave) : [],
         // We now store image URLs in Firebase Storage, so we just use the URL
         aboutImage: pageContent.aboutImage
       };
-      
+
       await setDoc(doc(db, 'website', 'pageContent'), { data: sanitizedPageContent });
-      
+
       // special handling for site settings with hero image
       const siteSettingsToSave = { ...siteSettings };
-      
+
       // We now store image URLs in Firebase Storage, so no need to sanitize
       // The heroBackgroundImage field should contain a URL now, not base64 data
       
       await setDoc(doc(db, 'website', 'siteSettings'), { data: siteSettingsToSave });
-      
-      // Also save FULL data to localStorage for quicker access
+
+      // Also save to localStorage for faster loading
       localStorage.setItem('players', JSON.stringify(players));
       localStorage.setItem('alumni', JSON.stringify(alumni));
       localStorage.setItem('events', JSON.stringify(events));
       localStorage.setItem('news', JSON.stringify(news));
-      // No longer storing campaigns separately in localStorage
-      // localStorage.setItem('campaigns', JSON.stringify(campaigns));
+      localStorage.setItem('campaigns', JSON.stringify(campaigns));
       localStorage.setItem('teams', JSON.stringify(teams));
       localStorage.setItem('pageContent', JSON.stringify(pageContent));
       localStorage.setItem('siteSettings', JSON.stringify(siteSettings));
-      
-      // Special case to clear existing test players if needed
-      if (players.length === 0) {
-        console.log('Clearing any test players from both localStorage and Firestore');
-        localStorage.removeItem('players');
-        await setDoc(doc(db, 'website', 'players'), { data: [] });
-      }
-      
-      console.log('Data saved to Firestore successfully (sanitized) and localStorage (full)');
-      
+
+      console.log('Data saved successfully to both Firestore and localStorage');
     } catch (error) {
-      console.error("Error saving data to Firestore:", error);
-      throw error; // Re-throw to allow handling in the calling component
+      console.error('Error saving data:', error);
+      throw error;
     }
   };
 
-  // Load data from Firestore (with localStorage fallback)
+  // Load data from Firestore, falling back to localStorage
   const loadData = async () => {
     try {
+      console.log('Loading data from Firestore...');
+      
       // Try to load from Firestore first
-      const playersDoc = await getDoc(doc(db, 'website', 'players'));
-      const alumniDoc = await getDoc(doc(db, 'website', 'alumni'));
-      const eventsDoc = await getDoc(doc(db, 'website', 'events'));
-      const newsDoc = await getDoc(doc(db, 'website', 'news'));
-      // No longer loading campaigns separately
-      // const campaignsDoc = await getDoc(doc(db, 'website', 'campaigns'));
-      const teamsDoc = await getDoc(doc(db, 'website', 'teams'));
-      const pageContentDoc = await getDoc(doc(db, 'website', 'pageContent'));
-      const siteSettingsDoc = await getDoc(doc(db, 'website', 'siteSettings'));
-      
-      // Update state with Firestore data
-      if (playersDoc.exists()) setPlayers(playersDoc.data()?.data || []);
-      if (alumniDoc.exists()) setAlumni(alumniDoc.data()?.data || []);
-      if (eventsDoc.exists()) setEvents(eventsDoc.data()?.data || []);
-      if (newsDoc.exists()) setNews(newsDoc.data()?.data || []);
-      // if (campaignsDoc.exists()) setCampaigns(campaignsDoc.data()?.data || []);
-      if (teamsDoc.exists()) setTeams(teamsDoc.data()?.data || []);
-      if (pageContentDoc.exists()) {
-        const pageData = pageContentDoc.data()?.data;
-        // Make sure all required fields exist
-        setPageContent({
-          aboutImage: pageData?.aboutImage || '',
-          coaches: pageData?.coaches || initialPageContent.coaches
-        });
-      }
-      if (siteSettingsDoc.exists() && siteSettingsDoc.data()?.data) {
-        setSiteSettings(siteSettingsDoc.data().data);
-      } else {
-        setSiteSettings(initialSiteSettings);
-      }
-      
-    } catch (error) {
-      console.error("Error loading data from Firestore:", error);
-      
-      // Fall back to localStorage if Firestore fails
-      const savedPlayers = localStorage.getItem('players');
-      const savedAlumni = localStorage.getItem('alumni');
-      const savedEvents = localStorage.getItem('events');
-      const savedNews = localStorage.getItem('news');
-      // No longer using campaigns in localStorage
-      // const savedCampaigns = localStorage.getItem('campaigns');
-      const savedTeams = localStorage.getItem('teams');
-      const savedPageContent = localStorage.getItem('pageContent');
-      const savedSettings = localStorage.getItem('siteSettings');
-
-      if (savedPlayers) setPlayers(JSON.parse(savedPlayers));
-      if (savedAlumni) setAlumni(JSON.parse(savedAlumni));
-      if (savedEvents) setEvents(JSON.parse(savedEvents));
-      if (savedNews) setNews(JSON.parse(savedNews));
-      // if (savedCampaigns) setCampaigns(JSON.parse(savedCampaigns));
-      if (savedTeams) setTeams(JSON.parse(savedTeams));
-      if (savedPageContent) setPageContent(JSON.parse(savedPageContent));
-      if (savedSettings) setSiteSettings(JSON.parse(savedSettings));
-    }
-  };
-
-  // Force refresh data from Firestore - use this function after saving
-  const refreshData = async () => {
-    try {
-      console.log('Refreshing data from Firestore and localStorage...');
-      
-      // Check Firestore first for latest data
       try {
-        console.log('Checking Firestore for latest data...');
-        
-        const playersDoc = await getDoc(doc(db, 'website', 'players'));
-        if (playersDoc.exists() && playersDoc.data()?.data) {
-          console.log('Firestore players data exists:', 
-            `${playersDoc.data()?.data.length} players found`);
-          setPlayers(playersDoc.data().data);
-        }
-        
-        const pageContentDoc = await getDoc(doc(db, 'website', 'pageContent'));
-        if (pageContentDoc.exists() && pageContentDoc.data()?.data) {
-          console.log('Firestore pageContent data exists, includes coaches:', 
-            `${pageContentDoc.data()?.data.coaches?.length || 0} coaches found`);
-          
-          // Make sure we have complete data structure even if some parts are missing
-          const pageData = pageContentDoc.data()?.data;
-          
-          // Ensure we handle coaches data properly
-          const coaches = pageData?.coaches || [];
-          console.log(`Found ${coaches.length} coaches in Firestore during refresh`);
-          
-          const updatedPageContent = {
-            aboutImage: pageData?.aboutImage || '',
-            coaches: coaches
-          };
-          
-          // Update state
-          setPageContent(updatedPageContent);
-          
-          // Update localStorage with this data too for consistency
-          localStorage.setItem('pageContent', JSON.stringify(updatedPageContent));
-          
-          // Log the updated data to confirm
-          console.log('Updated pageContent with coaches:', updatedPageContent);
-        } else {
-          console.log('No pageContent document in Firestore or missing data structure');
-        }
-        
-        // Continue loading other data types from Firestore
         const alumniDoc = await getDoc(doc(db, 'website', 'alumni'));
-        if (alumniDoc.exists() && alumniDoc.data()?.data) {
+        if (alumniDoc.exists() && alumniDoc.data().data) {
           setAlumni(alumniDoc.data().data);
         }
-        
+      } catch (error) {
+        console.error('Error loading alumni from Firestore:', error);
+      }
+
+      try {
         const eventsDoc = await getDoc(doc(db, 'website', 'events'));
-        if (eventsDoc.exists() && eventsDoc.data()?.data) {
-          console.log(`Found ${eventsDoc.data()?.data.length} events in Firestore:`, 
-            eventsDoc.data().data.map((e: any) => ({id: e.id, title: e.title, type: e.type, eventType: e.eventType})));
+        if (eventsDoc.exists() && eventsDoc.data().data) {
           setEvents(eventsDoc.data().data);
-        } else {
-          console.warn("No events document in Firestore or missing data structure");
         }
-        
+      } catch (error) {
+        console.error('Error loading events from Firestore:', error);
+      }
+
+      try {
         const newsDoc = await getDoc(doc(db, 'website', 'news'));
-        if (newsDoc.exists() && newsDoc.data()?.data) {
+        if (newsDoc.exists() && newsDoc.data().data) {
           setNews(newsDoc.data().data);
         }
-        
-        // No longer loading campaigns separately as they're part of events
-        // const campaignsDoc = await getDoc(doc(db, 'website', 'campaigns'));
-        // if (campaignsDoc.exists() && campaignsDoc.data()?.data) {
-        //   setCampaigns(campaignsDoc.data().data);
-        // }
-        
+      } catch (error) {
+        console.error('Error loading news from Firestore:', error);
+      }
+
+      try {
+        const campaignsDoc = await getDoc(doc(db, 'website', 'campaigns'));
+        if (campaignsDoc.exists() && campaignsDoc.data().data) {
+          setCampaigns(campaignsDoc.data().data);
+        }
+      } catch (error) {
+        console.error('Error loading campaigns from Firestore:', error);
+      }
+
+      try {
         const teamsDoc = await getDoc(doc(db, 'website', 'teams'));
-        if (teamsDoc.exists() && teamsDoc.data()?.data) {
+        if (teamsDoc.exists() && teamsDoc.data().data) {
           setTeams(teamsDoc.data().data);
         }
-        
+      } catch (error) {
+        console.error('Error loading teams from Firestore:', error);
+      }
+
+      try {
+        const pageContentDoc = await getDoc(doc(db, 'website', 'pageContent'));
+        if (pageContentDoc.exists() && pageContentDoc.data().data) {
+          setPageContent(pageContentDoc.data().data);
+        }
+      } catch (error) {
+        console.error('Error loading pageContent from Firestore:', error);
+      }
+
+      try {
         const siteSettingsDoc = await getDoc(doc(db, 'website', 'siteSettings'));
-        if (siteSettingsDoc.exists() && siteSettingsDoc.data()?.data) {
+        if (siteSettingsDoc.exists() && siteSettingsDoc.data().data) {
           setSiteSettings(siteSettingsDoc.data().data);
         }
-        
-      } catch (firestoreError) {
-        console.error("Error fetching data from Firestore:", firestoreError);
-        
-        // If Firestore fails, fall back to localStorage
-        console.log('Falling back to localStorage...');
-        loadFromLocalStorage();
+      } catch (error) {
+        console.error('Error loading siteSettings from Firestore:', error);
       }
-      
+
+      console.log('Data loaded successfully from Firestore');
     } catch (error) {
-      console.error("Error refreshing data:", error);
-    }
-  };
-  
-  // Helper function to load from localStorage
-  const loadFromLocalStorage = () => {
-    try {
-      // Primary data loading from localStorage as fallback
-      const loadData = (key: string, setter: React.Dispatch<React.SetStateAction<any>>): boolean => {
-        try {
-          const data = localStorage.getItem(key);
-          if (data) {
-            const parsedData = JSON.parse(data);
-            setter(parsedData);
-            console.log(`Loaded ${key} from localStorage:`, 
-              Array.isArray(parsedData) ? `${parsedData.length} items` : 'object');
-            return true;
-          }
-        } catch (error) {
-          console.error(`Error loading ${key} from localStorage:`, error);
-        }
-        return false;
-      };
+      console.error('Error loading data:', error);
       
-      // Try to load from localStorage for each data type
-      const playersLoaded = loadData('players', setPlayers);
-      const teamsLoaded = loadData('teams', setTeams);
-      const alumniLoaded = loadData('alumni', setAlumni);
-      const eventsLoaded = loadData('events', setEvents);
-      const newsLoaded = loadData('news', setNews);
-      // No longer loading campaigns separately
-      // const campaignsLoaded = loadData('campaigns', setCampaigns);
-      const pageContentLoaded = loadData('pageContent', setPageContent);
-      const settingsLoaded = loadData('siteSettings', setSiteSettings);
-      
-      console.log('Data loaded from localStorage:', { 
-        playersLoaded, teamsLoaded, alumniLoaded, eventsLoaded, 
-        newsLoaded, /* campaignsLoaded, */ pageContentLoaded, settingsLoaded 
-      });
-    } catch (error) {
-      console.error("Error loading from localStorage:", error);
+      // If Firestore fails, we still have localStorage as backup
+      console.log('Falling back to localStorage data');
     }
   };
 
-  // Setup initial data loading only
+  // Refresh data from Firestore
+  const refreshData = async () => {
+    await loadData();
+  };
+
+  // Load data on initial mount
   useEffect(() => {
-    // Initial load
     loadData();
-    
-    // Explicitly refresh the data after initial load, especially needed for coaches
-    setTimeout(() => {
-      console.log("Initial data load timeout completed, refreshing again to ensure latest data");
-      refreshData();
-    }, 2000);
-    
-    // No real-time listeners to avoid constant updates and errors
   }, []);
-  
-  // Save data when it changes
-  // Disable the automatic save that might be causing issues
-  // useEffect(() => {
-  //   const timeoutId = setTimeout(() => {
-  //     saveData();
-  //   }, 1000); // Increased debounce time to ensure complete saves
-  //   
-  //   return () => clearTimeout(timeoutId);
-  // }, [players, alumni, events, news, teams, pageContent, siteSettings]);
 
-  const value = {
-    players,
-    setPlayers,
-    alumni,
-    setAlumni,
-    events,
-    setEvents,
-    news,
-    setNews,
-    campaigns,
-    setCampaigns,
-    teams,
-    setTeams,
-    pageContent,
-    setPageContent,
-    siteSettings,
-    setSiteSettings,
-    saveData,
-    loadData,
-    refreshData,
-  };
-
-  return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
+  return (
+    <DataContext.Provider
+      value={{
+        players,
+        setPlayers,
+        alumni,
+        setAlumni,
+        events,
+        setEvents,
+        news,
+        setNews,
+        campaigns,
+        setCampaigns,
+        teams,
+        setTeams,
+        pageContent,
+        setPageContent,
+        siteSettings,
+        setSiteSettings,
+        saveData,
+        loadData,
+        refreshData
+      }}
+    >
+      {children}
+    </DataContext.Provider>
+  );
 };
 
-// Create a hook to use the context
+// Create a hook to use the data context
 export const useData = () => {
   const context = useContext(DataContext);
   if (context === undefined) {
