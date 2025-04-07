@@ -312,10 +312,9 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
     return savedTeams ? JSON.parse(savedTeams) : initialTeams;
   });
   
-  const [campaigns, setCampaigns] = useState<Campaign[]>(() => {
-    const savedCampaigns = localStorage.getItem('campaigns');
-    return savedCampaigns ? JSON.parse(savedCampaigns) : initialCampaigns;
-  });
+  // Campaigns are now managed as events with eventType: 'campaign'
+  // This state is kept for backward compatibility but not actively updated
+  const [campaigns, setCampaigns] = useState<Campaign[]>(initialCampaigns);
   
   const [pageContent, setPageContent] = useState<PageContent>(() => {
     const savedPageContent = localStorage.getItem('pageContent');
@@ -369,9 +368,17 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       // Store data collections in Firestore with sanitization
       // Players are handled specially in AdminPage.tsx
       await setDoc(doc(db, 'website', 'alumni'), { data: sanitizeData(alumni) });
+      
+      // Log events before saving to Firestore
+      console.log(`Saving ${events.length} events/campaigns to Firestore:`, 
+        events.map(e => ({id: e.id, title: e.title, type: e.type, eventType: e.eventType})));
+      
       await setDoc(doc(db, 'website', 'events'), { data: events }); // Events don't have image data
+      console.log("Events document saved to Firestore");
+      
       await setDoc(doc(db, 'website', 'news'), { data: sanitizeData(news) });
-      await setDoc(doc(db, 'website', 'campaigns'), { data: sanitizeData(campaigns) });
+      // No longer saving campaigns separately as they're included in events
+      // await setDoc(doc(db, 'website', 'campaigns'), { data: sanitizeData(campaigns) });
       await setDoc(doc(db, 'website', 'teams'), { data: teams }); // Teams don't have complex data
       
       // IMPORTANT: For pageContent, we need to ensure we're not wiping out coaches
@@ -404,7 +411,8 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       localStorage.setItem('alumni', JSON.stringify(alumni));
       localStorage.setItem('events', JSON.stringify(events));
       localStorage.setItem('news', JSON.stringify(news));
-      localStorage.setItem('campaigns', JSON.stringify(campaigns));
+      // No longer storing campaigns separately in localStorage
+      // localStorage.setItem('campaigns', JSON.stringify(campaigns));
       localStorage.setItem('teams', JSON.stringify(teams));
       localStorage.setItem('pageContent', JSON.stringify(pageContent));
       localStorage.setItem('siteSettings', JSON.stringify(siteSettings));
@@ -432,7 +440,8 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       const alumniDoc = await getDoc(doc(db, 'website', 'alumni'));
       const eventsDoc = await getDoc(doc(db, 'website', 'events'));
       const newsDoc = await getDoc(doc(db, 'website', 'news'));
-      const campaignsDoc = await getDoc(doc(db, 'website', 'campaigns'));
+      // No longer loading campaigns separately
+      // const campaignsDoc = await getDoc(doc(db, 'website', 'campaigns'));
       const teamsDoc = await getDoc(doc(db, 'website', 'teams'));
       const pageContentDoc = await getDoc(doc(db, 'website', 'pageContent'));
       const siteSettingsDoc = await getDoc(doc(db, 'website', 'siteSettings'));
@@ -442,7 +451,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       if (alumniDoc.exists()) setAlumni(alumniDoc.data()?.data || []);
       if (eventsDoc.exists()) setEvents(eventsDoc.data()?.data || []);
       if (newsDoc.exists()) setNews(newsDoc.data()?.data || []);
-      if (campaignsDoc.exists()) setCampaigns(campaignsDoc.data()?.data || []);
+      // if (campaignsDoc.exists()) setCampaigns(campaignsDoc.data()?.data || []);
       if (teamsDoc.exists()) setTeams(teamsDoc.data()?.data || []);
       if (pageContentDoc.exists()) {
         const pageData = pageContentDoc.data()?.data;
@@ -466,7 +475,8 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       const savedAlumni = localStorage.getItem('alumni');
       const savedEvents = localStorage.getItem('events');
       const savedNews = localStorage.getItem('news');
-      const savedCampaigns = localStorage.getItem('campaigns');
+      // No longer using campaigns in localStorage
+      // const savedCampaigns = localStorage.getItem('campaigns');
       const savedTeams = localStorage.getItem('teams');
       const savedPageContent = localStorage.getItem('pageContent');
       const savedSettings = localStorage.getItem('siteSettings');
@@ -475,7 +485,7 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       if (savedAlumni) setAlumni(JSON.parse(savedAlumni));
       if (savedEvents) setEvents(JSON.parse(savedEvents));
       if (savedNews) setNews(JSON.parse(savedNews));
-      if (savedCampaigns) setCampaigns(JSON.parse(savedCampaigns));
+      // if (savedCampaigns) setCampaigns(JSON.parse(savedCampaigns));
       if (savedTeams) setTeams(JSON.parse(savedTeams));
       if (savedPageContent) setPageContent(JSON.parse(savedPageContent));
       if (savedSettings) setSiteSettings(JSON.parse(savedSettings));
@@ -535,7 +545,11 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
         
         const eventsDoc = await getDoc(doc(db, 'website', 'events'));
         if (eventsDoc.exists() && eventsDoc.data()?.data) {
+          console.log(`Found ${eventsDoc.data()?.data.length} events in Firestore:`, 
+            eventsDoc.data().data.map((e: any) => ({id: e.id, title: e.title, type: e.type, eventType: e.eventType})));
           setEvents(eventsDoc.data().data);
+        } else {
+          console.warn("No events document in Firestore or missing data structure");
         }
         
         const newsDoc = await getDoc(doc(db, 'website', 'news'));
@@ -543,10 +557,11 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
           setNews(newsDoc.data().data);
         }
         
-        const campaignsDoc = await getDoc(doc(db, 'website', 'campaigns'));
-        if (campaignsDoc.exists() && campaignsDoc.data()?.data) {
-          setCampaigns(campaignsDoc.data().data);
-        }
+        // No longer loading campaigns separately as they're part of events
+        // const campaignsDoc = await getDoc(doc(db, 'website', 'campaigns'));
+        // if (campaignsDoc.exists() && campaignsDoc.data()?.data) {
+        //   setCampaigns(campaignsDoc.data().data);
+        // }
         
         const teamsDoc = await getDoc(doc(db, 'website', 'teams'));
         if (teamsDoc.exists() && teamsDoc.data()?.data) {
@@ -597,13 +612,14 @@ export const DataProvider: React.FC<DataProviderProps> = ({ children }) => {
       const alumniLoaded = loadData('alumni', setAlumni);
       const eventsLoaded = loadData('events', setEvents);
       const newsLoaded = loadData('news', setNews);
-      const campaignsLoaded = loadData('campaigns', setCampaigns);
+      // No longer loading campaigns separately
+      // const campaignsLoaded = loadData('campaigns', setCampaigns);
       const pageContentLoaded = loadData('pageContent', setPageContent);
       const settingsLoaded = loadData('siteSettings', setSiteSettings);
       
       console.log('Data loaded from localStorage:', { 
         playersLoaded, teamsLoaded, alumniLoaded, eventsLoaded, 
-        newsLoaded, campaignsLoaded, pageContentLoaded, settingsLoaded 
+        newsLoaded, /* campaignsLoaded, */ pageContentLoaded, settingsLoaded 
       });
     } catch (error) {
       console.error("Error loading from localStorage:", error);
